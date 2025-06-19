@@ -37,13 +37,17 @@ params['block_type']=['report','predict']
 
 # trial dictionary fields (rt is also in sec)
 params['trial_fields'] = ['blockNum','blockDifficulty','sigma','blockType','trialInBlock','trueHazard','evidence','states','trueVal']
-params['variants']=50
+params['variants']=2
 
 #  Save directory
-params['saveDir'] = os.getcwd()+'/variants'
-# make the save folder if it doesnt exist
-if os.path.exists(params['saveDir'])==False:
-    os.mkdir(params['saveDir'])
+# this file’s directory:
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Save directory := “variants” inside the folder the script lives in
+params['saveDir'] = os.path.join(script_dir, 'variants')
+
+# make the save folder if it doesn’t exist
+os.makedirs(params['saveDir'], exist_ok=True)
 
 
 #%% --- generate and display evidence

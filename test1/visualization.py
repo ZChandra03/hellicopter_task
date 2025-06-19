@@ -5,7 +5,6 @@ import torch.nn.functional as F
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 
 from evaluate import evaluate_model_with_tolerance
 
@@ -179,69 +178,3 @@ def print_next_drop_stats(name, accuracy, predicted_next):
     print(f"{name} Accuracy: {accuracy * 100:.2f}%")
     print(f"  Decisions to STAY  (-1): {num_stay} ({num_stay / total * 100:.2f}%)")
     print(f"  Decisions to SWITCH (+1): {num_switch} ({num_switch / total * 100:.2f}%)")
-
-
-def plot_network_structure(model, num_classes):
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import seaborn as sns
-
-    # Get trained weights
-    W_in = model.fc_input.weight.detach().cpu().numpy().squeeze()     # shape: [hidden_size]
-    W_out = model.fc_output.weight.detach().cpu().numpy()             # shape: [num_classes, hidden_size]
-    b_out = model.fc_output.bias.detach().cpu().numpy()               # shape: [num_classes]
-
-    hidden_size = W_out.shape[1]
-
-    # Calculate net contribution to each class
-    neuron_contribution = {
-        "to_-1": W_out[0] * W_in,
-        "to_+1": W_out[1] * W_in,
-        "diff": (W_out[1] - W_out[0]) * W_in  # discriminatory contribution
-    }
-
-    # Sort neurons by absolute contribution difference
-    sort_idx = np.argsort(np.abs(neuron_contribution["diff"]))[::-1]
-
-    # --- Plot: Sorted neuron contributions ---
-    plt.figure(figsize=(12, 4))
-    plt.plot(neuron_contribution["diff"][sort_idx], marker='o', linestyle='-', label="Discriminative Contribution")
-    plt.axhline(0, color='gray', linestyle='--')
-    plt.title("Sorted Hidden Neuron Contributions to Class Separation")
-    plt.ylabel("Signed Contribution")
-    plt.xlabel("Hidden Units (sorted)")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-
-    # --- Plot: Heatmap of top influential neurons ---
-    top_k = 50  # Show top 50 most discriminative neurons
-    top_idx = sort_idx[:top_k]
-    top_contributions = np.stack([W_out[0, top_idx], W_out[1, top_idx]], axis=0)  # shape: [2, top_k]
-
-    plt.figure(figsize=(12, 3))
-    sns.heatmap(top_contributions, cmap='coolwarm', center=0, annot=False,
-                xticklabels=False, yticklabels=["Class -1", "Class +1"])
-    plt.title(f"Top {top_k} Hidden Units: Output Weights (Most Discriminative)")
-    plt.xlabel("Hidden Unit Index (sorted by contribution)")
-    plt.tight_layout()
-    plt.show()
-
-    # --- Plot: Input weights histogram ---
-    plt.figure(figsize=(8, 3))
-    plt.hist(W_in, bins=50, color='purple', edgecolor='black')
-    plt.axvline(0, linestyle='--', color='gray')
-    plt.title("Distribution of Input → Hidden Weights")
-    plt.xlabel("Weight Value")
-    plt.ylabel("Number of Hidden Units")
-    plt.tight_layout()
-    plt.show()
-
-    # --- Plot: Output layer biases ---
-    #plt.figure(figsize=(4, 2))
-    #plt.bar(["Class -1", "Class +1"], b_out, color=["blue", "green"])
-    ##plt.axhline(0, linestyle='--', color='gray')
-    #plt.title("Output Layer Biases")
-    #plt.ylabel("Bias")
-    #plt.tight_layout()
-    #plt.show()
