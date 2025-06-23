@@ -73,4 +73,3 @@ class GRUModel(nn.Module):
         haz_logits = self.haz_head(h[:, -1])# (B, 1) – only last step
 
         return loc_logits, haz_logits
-    
