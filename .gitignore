@@ -18,3 +18,4 @@ Thumbs.db
 # ignore all generated figures
 *.png
 *.gif
+*.csv
