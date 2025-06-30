@@ -19,7 +19,7 @@ from NormativeModel import BayesianObserver
 # ───────────────────────── configuration -------------------------------------
 BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
 VARIANT_DIR: str = os.path.join(BASE_DIR, "variants")
-HS_GRID: np.ndarray = np.arange(0.0, 1.05, 0.05)
+HS_GRID: np.ndarray = np.arange(0.0, 1.005, 0.005)
 MU1, MU2 = -1, 1
 EPS: float = 1e-10  # numerical safety for log / div
 

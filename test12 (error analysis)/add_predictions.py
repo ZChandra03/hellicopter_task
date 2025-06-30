@@ -16,7 +16,7 @@ from rnn_models    import GRUModel, LSTMModel, RNNModel
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 VAR_DIR    = os.path.join(BASE_DIR, "variants")      # where testConfig_var*.csv live
 DEVICE     = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-HS_GRID    = np.arange(0, 1.05, 0.05)
+HS_GRID    = np.arange(0, 1.005, 0.005)
 MU1, MU2   = -1, 1                                   # location means for the observer
 
 # folders → suffix used in column names
