@@ -38,7 +38,7 @@ from typing import Dict, List, Any
 params: Dict[str, Any] = {}
 
 # — Core trial settings —
-params['nTrials']      = 1000          # trials per block
+params['nTrials']      = 100          # trials per block
 params['nEvidence']    = 20           # evidential samples per trial
 params['xLim']         = 5            # truncation limit of evidence
 params['Mu']           = 1            # latent mean magnitude
@@ -46,7 +46,7 @@ params['responseTimeLimit_s'] = 5     # (unused here, but written to CSV)
 
 # — Uniform-grid hazard generation (legacy fallback) —
 params['HazRes']   = 0.05
-params['Hazards']  = np.arange(0, 1, params['HazRes'])
+params['Hazards']  = np.arange(0, 1.05, params['HazRes'])
 
 # — Custom hazard-ratio generation (***set to ``None`` to disable***) —
 params['hazard_probs'] = {
@@ -59,12 +59,12 @@ params['hazard_probs'] = {
 }
 
 # — Block difficulty (σ for evidence noise) —
-params['testSigmas']  = [0.1]
-params['block_list']  = ['easy']
+params['testSigmas']  = [0, 0.1, 0.5]
+params['block_list']  = ['preTest', 'easy', 'medium']
 params['nBlocks']     = len(params['testSigmas'])
 
 # — Output / variants —
-params['variants'] = 2
+params['variants'] = 40
 script_dir        = os.path.dirname(os.path.abspath(__file__))
 params['saveDir'] = os.path.join(script_dir, 'variants')
 os.makedirs(params['saveDir'], exist_ok=True)
