@@ -21,7 +21,7 @@ from NormativeModel import BayesianObserver
 
 # ───────────────────────── user-tunable knobs  ─────────────────────────
 TRAINED_VARIANT_SET = 1   # 1 | 2 | 3  → models/*_variants_1/
-TEST_VARIANT_SET    = 1   # 1 | 2 | 3  → variants_1/
+TEST_VARIANT_SET    = 3   # 1 | 2 | 3  → variants_1/
 # ───────────────────────────────────────────────────────────────────────
 
 # ───────────────────────── configuration -----------------------------------------
