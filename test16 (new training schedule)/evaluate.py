@@ -1,13 +1,16 @@
-"""evaluate_all.py – compare GRU, LSTM and vanilla RNN (±Bayes targets)
-   on a chosen variant-set of test CSVs.
-   --------------------------------------------------------------------
-   Two knobs at the top pick:
-       • TRAINED_VARIANT_SET  – which model folders to load
-       • TEST_VARIANT_SET     – which variants_X/ folder to read test CSVs from
-   Result: evaluate 6 networks (3× normal + 3× Bayes-norm) that were
-           trained on one set, against data from another (or the same).
-"""
+"""evaluate.py – compare GRU, LSTM and vanilla RNN performance against the
+Bayesian normative model
+--------------------------------------------------------------------------
+This script now loops over **three** trained network architectures that share
+an identical read‑out structure (see `rnn_models.py`):
 
+    • GRUModel   – checkpoint under  models/gru_trained/
+    • LSTMModel  – checkpoint under  models/lstm_trained/
+    • RNNModel   – checkpoint under  models/rnn_trained/
+
+For each network we compute the same per‑trial statistics as before and then
+print a concise summary next to the Bayesian ideal observer.
+"""
 import os, ast
 from typing import Dict, List, Tuple, Type
 
@@ -19,43 +22,32 @@ import matplotlib.pyplot as plt
 from rnn_models import GRUModel, LSTMModel, RNNModel
 from NormativeModel import BayesianObserver
 
-# ───────────────────────── user-tunable knobs  ─────────────────────────
-TRAINED_VARIANT_SET = 2   # 1 | 2 | 3  → models/*_variants_1/
-TEST_VARIANT_SET    = 3   # 1 | 2 | 3  → variants_1/
-# ───────────────────────────────────────────────────────────────────────
-
-# ───────────────────────── configuration -----------------------------------------
+# ───────────────────────── configuration
 DEVICE       = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
-VARIANT_DIR  = os.path.join(BASE_DIR, f"variants_{TEST_VARIANT_SET}")   # <── changed
+VARIANT_DIR  = os.path.join(BASE_DIR, "variants")
 HS_GRID      = np.arange(0, 1.05, 0.05)
 MU1, MU2     = -1, 1
-EPS          = 1e-10   # numerical safety for log / div
+EPS          = 1e-10  # numerical safety for log / div
 
-# Build MODEL_SPECS dynamically so tags point at the correct folders
-BASE_TO_CLS: Dict[str, Type[torch.nn.Module]] = {
-    "gru" : GRUModel,
-    "lstm": LSTMModel,
-    "rnn" : RNNModel,
-}
+# Each tuple: (short label, model class, checkpoint sub‑directory)
+MODEL_SPECS: List[Tuple[str, Type[torch.nn.Module], str]] = [
+    ("gru",  GRUModel,  "gru_trained"),
+]
 
-MODEL_SPECS: List[Tuple[str, Type[torch.nn.Module], str]] = []
-for base, cls in BASE_TO_CLS.items():
-    #   e.g. 'gru_variants_1'                (normal targets)
-    #        'gru_variants_1_bayes'          (Bayes-norm targets)
-    tag_root = f"{base}_variants_{TRAINED_VARIANT_SET}"
-    MODEL_SPECS.append( (base,          cls, f"{tag_root}") )
-    MODEL_SPECS.append( (f"{base}_bayes", cls, f"{tag_root}_bayes") )
+# ───────────────────────── helpers ----------------------------------------------------
 
-# ───────────────────────── helpers (unchanged except for filenames) --------------
 def get_default_hp() -> Dict[str, int]:
+    """Return the common hyper‑parameter set used during training."""
     return {"n_input": 1, "n_rnn": 128}
 
+
 def load_model(model_cls: Type[torch.nn.Module], tag: str):
+    """Instantiate *and* load checkpoint for the requested network."""
     hp = get_default_hp()
     model = model_cls(hp).to(DEVICE)
 
-    ckpt_path = os.path.join(BASE_DIR, "models", tag, "checkpoint.pt")
+    ckpt_path = os.path.join(BASE_DIR, "models", tag, "checkpoint_best.pt")
     if not os.path.isfile(ckpt_path):
         raise FileNotFoundError(f"Checkpoint not found – expected {ckpt_path}")
 
@@ -156,14 +148,13 @@ def aggregate(records: List[Dict], label: str):
 
     return grouped, df
 
-# (… everything inside evaluate_variant, aggregate, evaluate_model is IDENTICAL …)
-# ----- we only tweak histogram filename inside evaluate_model -------------------
-def evaluate_model(label: str, model_cls: Type[torch.nn.Module],
-                   tag: str, max_variants: int = 40):
+# ───────────────────────── per‑model driver -------------------------------------------
 
+def evaluate_model(label: str, model_cls: Type[torch.nn.Module], tag: str, max_variants: int = 40):
+    print(f"\n===== Evaluating {label.upper()} =====")
     model = load_model(model_cls, tag)
-    all_recs: List[Dict] = []
 
+    all_recs: List[Dict] = []
     for k in range(max_variants):
         csv_path = os.path.join(VARIANT_DIR, f"testConfig_var{k}.csv")
         if not os.path.isfile(csv_path):
@@ -171,62 +162,51 @@ def evaluate_model(label: str, model_cls: Type[torch.nn.Module],
         all_recs.extend(evaluate_variant(model, csv_path, label))
 
     table, raw_df = aggregate(all_recs, label)
+
+    # ---- print tables ------------------------------------------------------
+    print("Per‑condition performance (network vs Normative)")
+    print("=" * 110)
+    with pd.option_context("display.float_format", "{:.3f}".format):
+        print(table.to_string(index=False))
+
     weights = table["N"]
-
-    if label == "gru":   # print Norm row only once
-        overall = {
-            "Norm": {
-                "report_acc": np.average(table["report_acc_norm"], weights=weights),
-                "hazard_acc": np.average(table["hazard_acc_norm"], weights=weights),
-                "hazard_hilo":np.average(table["hazard_hilo_norm"],weights=weights),
-            },
-            label.upper(): {
-                "report_acc": np.average(table["report_acc_net"],  weights=weights),
-                "hazard_acc": np.average(table["hazard_acc_net"],  weights=weights),
-                "hazard_hilo":np.average(table["hazard_hilo_net"], weights=weights),
-            },
-        }
-    else:
-        overall = {
-            label.upper(): {
-                "report_acc": np.average(table["report_acc_net"],  weights=weights),
-                "hazard_acc": np.average(table["hazard_acc_net"],  weights=weights),
-                "hazard_hilo":np.average(table["hazard_hilo_net"], weights=weights),
-            }
-        }
-
+    overall = {
+        label.upper(): {
+            "report_acc": np.average(table["report_acc_net"],  weights=weights),
+            "hazard_acc": np.average(table["hazard_acc_net"],  weights=weights),
+            "hazard_hilo":np.average(table["hazard_hilo_net"], weights=weights),
+        },
+        "Norm": {
+            "report_acc": np.average(table["report_acc_norm"], weights=weights),
+            "hazard_acc": np.average(table["hazard_acc_norm"], weights=weights),
+            "hazard_hilo":np.average(table["hazard_hilo_norm"],weights=weights),
+        },
+    }
+    print("\nOverall performance")
     for m, s in overall.items():
-        print(f"{m}: report {s['report_acc']:.3%} | "
-              f"hazard ±0.10 {s['hazard_acc']:.3%} | "
-              f"hazard Hi/Lo {s['hazard_hilo']:.3%}")
+        print(f"{m}: report {s['report_acc']:.3%} | hazard ±0.10 {s['hazard_acc']:.3%} | hazard Hi/Lo {s['hazard_hilo']:.3%}")
 
-    # histogram file carries train/test IDs so nothing is overwritten
+    # ---- plot histogram ----------------------------------------------------
     bins = np.arange(-1.0, 1.0001, 0.05)
     plt.figure(figsize=(8, 4.5))
-    plt.hist(raw_df["haz_err_norm"], bins=bins, alpha=0.6,
-             label="Bayesian", edgecolor="black")
-    plt.hist(raw_df[f"haz_err_{label}"], bins=bins, alpha=0.6,
-             label=label.upper(), edgecolor="black")
+    plt.hist(raw_df["haz_err_norm"], bins=bins, alpha=0.6, label="Bayesian", edgecolor="black")
+    plt.hist(raw_df[f"haz_err_{label}"], bins=bins, alpha=0.6, label=label.upper(), edgecolor="black")
     plt.axvline(0, color="k", linewidth=1)
     plt.xlabel("Prediction error: (predicted − true hazard)")
     plt.ylabel("Count")
-    plt.title(f"Hazard prediction error – {label.upper()} "
-              f"(train {TRAINED_VARIANT_SET} → test {TEST_VARIANT_SET})")
+    plt.title(f"Hazard prediction error distribution – {label.upper()}")
     plt.legend()
     plt.tight_layout()
-    fig_path = os.path.join(
-        BASE_DIR, f"hist_{label}_train{TRAINED_VARIANT_SET}"
-                  f"_test{TEST_VARIANT_SET}.png")
-    plt.savefig(fig_path, dpi=180)
+    plt.show()
 
-    return raw_df
+    return raw_df  # useful if caller wants the numeric loss etc.
 
-# ───────────────────────── main driver ---------------------------------------------
+# ───────────────────────────────────────── main ---------------------------------------
 if __name__ == "__main__":
-    MAX_VARIANTS = 40
-    for lbl, cls, tag in MODEL_SPECS:
-        evaluate_model(lbl, cls, tag, max_variants=MAX_VARIANTS)
+    max_variants = 40  # keep default
 
-    print("\nDone – evaluated models trained on "
-          f"variants_{TRAINED_VARIANT_SET} against "
-          f"variants_{TEST_VARIANT_SET}.")
+    # Evaluate each network architecture sequentially -----------------------
+    for label, cls, tag in MODEL_SPECS:
+        evaluate_model(label, cls, tag, max_variants=max_variants)
+
+    print("\nEvaluation finished for all network types.")
