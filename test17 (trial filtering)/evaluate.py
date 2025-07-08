@@ -33,11 +33,6 @@ EPS          = 1e-10  # numerical safety for log / div
 # Each tuple: (short label, model class, checkpoint sub‑directory)
 MODEL_SPECS: List[Tuple[str, Type[torch.nn.Module], str]] = [
     ("gru",  GRUModel,  "gru_trained"),
-    ("lstm", LSTMModel, "lstm_trained"),
-    ("rnn",  RNNModel,  "rnn_trained"),
-    ("gru_bayes",  GRUModel,  "gru_trained_bayes"),
-    ("lstm_bayes", LSTMModel, "lstm_trained_bayes"),
-    ("rnn_bayes",  RNNModel,  "rnn_trained_bayes"),
 ]
 
 # ───────────────────────── helpers ----------------------------------------------------
@@ -52,7 +47,7 @@ def load_model(model_cls: Type[torch.nn.Module], tag: str):
     hp = get_default_hp()
     model = model_cls(hp).to(DEVICE)
 
-    ckpt_path = os.path.join(BASE_DIR, "models", tag, "checkpoint.pt")
+    ckpt_path = os.path.join(BASE_DIR, "models", tag, "checkpoint_best.pt")
     if not os.path.isfile(ckpt_path):
         raise FileNotFoundError(f"Checkpoint not found – expected {ckpt_path}")
 
@@ -156,7 +151,7 @@ def aggregate(records: List[Dict], label: str):
 # ───────────────────────── per‑model driver -------------------------------------------
 
 def evaluate_model(label: str, model_cls: Type[torch.nn.Module], tag: str, max_variants: int = 40):
-    #print(f"\n===== Evaluating {label.upper()} =====")
+    print(f"\n===== Evaluating {label.upper()} =====")
     model = load_model(model_cls, tag)
 
     all_recs: List[Dict] = []
@@ -168,34 +163,29 @@ def evaluate_model(label: str, model_cls: Type[torch.nn.Module], tag: str, max_v
 
     table, raw_df = aggregate(all_recs, label)
 
+    # ---- print tables ------------------------------------------------------
+    print("Per‑condition performance (network vs Normative)")
+    print("=" * 110)
+    with pd.option_context("display.float_format", "{:.3f}".format):
+        print(table.to_string(index=False))
+
     weights = table["N"]
-    if label == "gru":
-        overall = {
+    overall = {
+        label.upper(): {
+            "report_acc": np.average(table["report_acc_net"],  weights=weights),
+            "hazard_acc": np.average(table["hazard_acc_net"],  weights=weights),
+            "hazard_hilo":np.average(table["hazard_hilo_net"], weights=weights),
+        },
         "Norm": {
             "report_acc": np.average(table["report_acc_norm"], weights=weights),
             "hazard_acc": np.average(table["hazard_acc_norm"], weights=weights),
             "hazard_hilo":np.average(table["hazard_hilo_norm"],weights=weights),
         },
-        label.upper(): {
-            "report_acc": np.average(table["report_acc_net"],  weights=weights),
-            "hazard_acc": np.average(table["hazard_acc_net"],  weights=weights),
-            "hazard_hilo":np.average(table["hazard_hilo_net"], weights=weights),
-        },
-        }
-    else:
-        overall = {
-        label.upper(): {
-            "report_acc": np.average(table["report_acc_net"],  weights=weights),
-            "hazard_acc": np.average(table["hazard_acc_net"],  weights=weights),
-            "hazard_hilo":np.average(table["hazard_hilo_net"], weights=weights),
-        }
-        }
-
-    
-    #print("\nOverall performance")
+    }
+    print("\nOverall performance")
     for m, s in overall.items():
         print(f"{m}: report {s['report_acc']:.3%} | hazard ±0.10 {s['hazard_acc']:.3%} | hazard Hi/Lo {s['hazard_hilo']:.3%}")
-        
+
     # ---- plot histogram ----------------------------------------------------
     bins = np.arange(-1.0, 1.0001, 0.05)
     plt.figure(figsize=(8, 4.5))
@@ -207,9 +197,8 @@ def evaluate_model(label: str, model_cls: Type[torch.nn.Module], tag: str, max_v
     plt.title(f"Hazard prediction error distribution – {label.upper()}")
     plt.legend()
     plt.tight_layout()
-    fig_path = os.path.join(BASE_DIR, f"hist_{label}.png")
-    plt.savefig(fig_path, dpi=180)
-    #print(f"[saved] {fig_path}")
+    plt.show()
+
     return raw_df  # useful if caller wants the numeric loss etc.
 
 # ───────────────────────────────────────── main ---------------------------------------
