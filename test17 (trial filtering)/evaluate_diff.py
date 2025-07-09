@@ -186,7 +186,7 @@ def evaluate_model(label: str, model_cls: Type[torch.nn.Module], tag: str, max_v
     for m, s in overall.items():
         print(f"{m}: report {s['report_acc']:.3%} | hazard ±0.10 {s['hazard_acc']:.3%} | hazard Hi/Lo {s['hazard_hilo']:.3%}")
 
-    # ---- plot histogram ----------------------------------------------------
+    # ---- plot histogram: hazard errors ------------------------------------
     bins = np.arange(-1.0, 1.0001, 0.05)
     plt.figure(figsize=(8, 4.5))
     plt.hist(raw_df["haz_err_norm"], bins=bins, alpha=0.6, label="Bayesian", edgecolor="black")
@@ -196,6 +196,18 @@ def evaluate_model(label: str, model_cls: Type[torch.nn.Module], tag: str, max_v
     plt.ylabel("Count")
     plt.title(f"Hazard prediction error distribution – {label.upper()}")
     plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    # ---- plot histogram: Bayes – Model discrepancy ------------------------
+    bins_disc = np.arange(-0.25, 0.2501, 0.05)
+    diff = raw_df["haz_err_norm"] - raw_df[f"haz_err_{label}"]  # (Bayes − Model)
+    plt.figure(figsize=(8, 4.5))
+    plt.hist(diff, bins=bins_disc, alpha=0.75, edgecolor="black")
+    plt.axvline(0, color="k", linewidth=1)
+    plt.xlabel("Bayes − Model hazard prediction error difference")
+    plt.ylabel("Count")
+    plt.title(f"Bayes vs {label.upper()} hazard prediction discrepancy")
     plt.tight_layout()
     plt.show()
 

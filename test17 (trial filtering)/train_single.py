@@ -26,7 +26,7 @@ from torch.utils.data import Dataset, DataLoader
 
 # project
 from rnn_models import GRUModel, LSTMModel, RNNModel
-import TaskConfig_Generator_filtered as TCG
+import TaskConfig_Generator as TCG
 
 # ---------------------------------------------------------------------------
 DEVICE   = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -39,7 +39,7 @@ def get_default_hp():
         "n_input"       : 1,
         "n_rnn"         : 128,
         "batch_size"    : 25,
-        "max_epochs"    : 500,
+        "max_epochs"    : 1000,
         "learning_rate" : 3e-4,
         "target_loss"   : 2e-3,   # early‑stop once any epoch beats this
     }
@@ -115,7 +115,8 @@ def train_model(model_cls: Type[nn.Module], tag: str, seed: int = 0):
 
         epoch_loss = running / batches
         loss_hist.append(epoch_loss)
-        print(f"{tag} | epoch {epoch:3d} | loss {epoch_loss:.4e}")
+        if epoch % 10 == 0 or epoch == hp["max_epochs"] - 1:
+            print(f"{tag} | epoch {epoch:3d} | loss {epoch_loss:.4e}")
 
         # checkpoint best model so far
         if epoch_loss < best_loss:

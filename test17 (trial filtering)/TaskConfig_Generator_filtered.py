@@ -68,8 +68,8 @@ params["hazard_probs"] = {
 }
 
 # — Evidence noise (σ) values per difficulty block —
-params["block_list"] = ["easy", "medium", "hard"]
-params["testSigmas"] = [0.5, 1.0, 2.0]
+params['testSigmas']  = [0, 0.1, 0.5]
+params['block_list']  = ['preTest', 'easy', 'medium']
 params["nBlocks"] = len(params["testSigmas"])
 
 # — Output / variants —
