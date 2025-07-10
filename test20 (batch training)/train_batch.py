@@ -103,8 +103,6 @@ def train_model(model_cls: Type[nn.Module], tag: str, use_norm: bool, seed: int 
     torch.manual_seed(seed)
 
     # Paths
-    #suffix = "_norm" if use_norm else ""
-    #model_dir = os.path.join(BASE_DIR, "models", f"{tag}{suffix}")
     model_dir = os.path.join(BASE_DIR, "models", f"{tag}")
     os.makedirs(model_dir, exist_ok=True)
     ckpt_best  = os.path.join(model_dir, "checkpoint_best.pt")
@@ -160,13 +158,18 @@ def train_model(model_cls: Type[nn.Module], tag: str, use_norm: bool, seed: int 
 # ---------------------------------------------------------------------------
 
 def main():
+    # (model class, base-tag, use_norm)
     MODEL_SPECS = [
-        (GRUModel,  "gru_truth", False),  # ground truth
-        (GRUModel,  "gru_norm",  True),   # normative labels
+        (GRUModel,  "gru_truth", False),   # ground-truth targets
+        (GRUModel,  "gru_norm",  True),    # Bayesian-normative targets
     ]
-    for cls, tag, use_norm in MODEL_SPECS:
-        train_model(cls, tag, use_norm, seed=0)
-    print("All models done — each epoch uses fresh, non‑repeated trials.")
+
+    for cls, base_tag, use_norm in MODEL_SPECS:
+        for seed in range(10):                     # train 10 seeds
+            tag = f"{base_tag}_s{seed}"            # e.g. gru_truth_s3
+            train_model(cls, tag, use_norm, seed=seed)
+
+    print("All models done — 10 seeds each, fresh trials every epoch.")
 
 
 if __name__ == "__main__":
