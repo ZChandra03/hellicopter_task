@@ -19,3 +19,5 @@ Thumbs.db
 *.png
 *.gif
 *.csv
+*.pt
+*.json
