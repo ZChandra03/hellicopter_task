@@ -43,7 +43,7 @@ EPS          = 1e-10  # numerical safety margin
 
 # (label, class, checkpoint‑subfolder)
 MODEL_SPECS: List[Tuple[str, Type[torch.nn.Module], str]] = [
-    ("gru",  GRUModel,  "gru_truth_s0"),
+    ("gru",  GRUModel,  "seed_0"),
     # Uncomment below when checkpoints are available
     # ("lstm", LSTMModel, "lstm_norm_s4"),
     # ("rnn",  RNNModel,  "rnn_norm_s4"),
@@ -67,7 +67,7 @@ def load_model(model_cls: Type[torch.nn.Module], tag: str):
     hp = get_default_hp()
     model = model_cls(hp).to(DEVICE)
 
-    ckpt_path = os.path.join(BASE_DIR, "models", tag, "final.pt")
+    ckpt_path = os.path.join(BASE_DIR, "models", "uns_truth", tag, "final.pt")
     if not os.path.isfile(ckpt_path):
         raise FileNotFoundError(f"Checkpoint not found: {ckpt_path}")
 
