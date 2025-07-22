@@ -151,8 +151,8 @@ def generate_variant(vidx: int) -> pd.DataFrame:
 
 def main():
     # defaults: 30 train, 10 test (override via CLI)
-    n_train = int(sys.argv[1]) if len(sys.argv) > 1 else 200
-    n_test  = int(sys.argv[2]) if len(sys.argv) > 2 else 20
+    n_train = int(sys.argv[1]) if len(sys.argv) > 1 else 2
+    n_test  = int(sys.argv[2]) if len(sys.argv) > 2 else 1
 
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "variants")
     os.makedirs(root, exist_ok=True)
