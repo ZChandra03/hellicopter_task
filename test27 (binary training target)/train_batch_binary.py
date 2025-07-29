@@ -176,7 +176,7 @@ def train_model(model_cls: Type[nn.Module], type_key: str, seed: int, *, use_nor
 # ───────────────────────────── entry‑point ───────────────────────────────
 
 def main() -> None:
-    seeds = range(1)  # adjust as needed
+    seeds = range(10)  # adjust as needed
     SPECS: List[Tuple[Type[nn.Module], bool, str]] = [
         (GRUModel, False, "truth"),
         (GRUModel, True,  "norm"),

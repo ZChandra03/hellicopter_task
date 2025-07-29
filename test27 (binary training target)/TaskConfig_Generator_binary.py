@@ -78,8 +78,8 @@ def save_variant(df: pd.DataFrame, split: str, vidx: int, root: str) -> None:
 # CLI driver
 # ---------------------------------------------------------------------------- #
 def main():
-    n_train = int(sys.argv[1]) if len(sys.argv) > 1 else 2
-    n_test  = int(sys.argv[2]) if len(sys.argv) > 2 else 1
+    n_train = int(sys.argv[1]) if len(sys.argv) > 1 else 500
+    n_test  = int(sys.argv[2]) if len(sys.argv) > 2 else 50
 
     root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "variants")
     os.makedirs(root, exist_ok=True)
