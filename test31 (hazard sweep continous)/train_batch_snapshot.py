@@ -188,7 +188,7 @@ def train_beta(
 
 # ───────────────────────────── entry‑point ────────────────────────────────
 def main() -> None:
-    seeds = range(1)          # adjust as needed
+    seeds = range(10)          # adjust as needed
     for seed in seeds:
         for beta_key in BETA_KEYS:
             train_beta(GRUModel, beta_key, seed)

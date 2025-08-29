@@ -45,8 +45,8 @@ params: Dict[str, Any] = {
     'block_list'    : ['single'],
 
     # I/O
-    'train_variants': 5,      # how many train CSVs per Beta prior
-    'test_variants' : 1,       # how many   test CSVs per Beta prior
+    'train_variants': 500,      # how many train CSVs per Beta prior
+    'test_variants' : 50,       # how many   test CSVs per Beta prior
 
     # CSV column order (kept for legacy compatibility)
     'trial_fields'  : [

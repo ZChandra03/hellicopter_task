@@ -1,38 +1,18 @@
 #!/usr/bin/env python3
 """
-train_batch_snapshot.py — Beta‑sweep edition (July 2025)
-=======================================================
+train_batch_snapshot.py — Beta-sweep edition (binary hazard)
+============================================================
 Compares how different symmetric Beta priors over hazard rates affect
 GRU training on the helicopter task.
 
-Directory layout expected
--------------------------
-variants/
-    beta_0p1/
-        trainConfig_0.csv   [≥1 per beta; name pattern *trainConfig_*.csv*]
-        testConfig_0.csv
-    beta_0p5/
-        …
-    beta_1p0/              ← *baseline probe* uses testConfig_0.csv here
-        …
-    beta_2p0/
-    beta_10p0/
-
-Outputs per run::
-
-    models/<beta_key>/seed_<n>/
-        ├── checkpoint_best.pt
-        ├── checkpoint_ep020.pt
-        ├── …
-        ├── final.pt
-        ├── loss_history.json
-        ├── baseline_loss_history.json
-        └── hp.json
+This version trains the hazard head as a **binary** classifier using the
+`truePredict` column (−1/+1 mapped to 0/1), mirroring train_batch_binary.py.
 """
 
 from __future__ import annotations
+import ast
 import glob, os, random, time, json
-from typing import List, Type, Tuple
+from typing import List, Type
 
 import numpy as np
 import pandas as pd
@@ -43,8 +23,8 @@ from torch.utils.data import DataLoader, Dataset
 from rnn_models import GRUModel
 
 # ───────────────────────────── configuration ──────────────────────────────
-DEVICE      = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
+DEVICE       = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 VARIANTS_DIR = os.path.join(BASE_DIR, "variants")
 
 BETA_KEYS = [
@@ -66,21 +46,33 @@ def get_default_hp() -> dict:
 
 # ───────────────────────────── dataset helper ─────────────────────────────
 class HelicopterDataset(Dataset):
-    """Convert one CSV of trials into tensors consumable by PyTorch."""
+    """Convert one CSV of trials into tensors consumable by PyTorch.
+
+    Targets:
+      - report → trueReport  (−1/+1 → 0/1)
+      - hazard → truePredict (−1/+1 → 0/1)  **binary hazard**
+    """
 
     def __init__(self, df: pd.DataFrame):
         xs, yr, yh = [], [], []
         for _, row in df.iterrows():
             evid = row["evidence"]
             if not isinstance(evid, list):
-                evid = eval(str(evid))
+                evid = ast.literal_eval(str(evid))
+
             xs.append(torch.tensor(evid, dtype=torch.float32).unsqueeze(-1))
+
+            # map −1/+1 → 0/1 for BCEWithLogitsLoss
             yr.append(torch.tensor([(row["trueReport"] + 1) * 0.5], dtype=torch.float32))
-            yh.append(torch.tensor([row["trueHazard"]], dtype=torch.float32))
+            yh.append(torch.tensor([(row["truePredict"] + 1) * 0.5], dtype=torch.float32))
+
         self.x, self.y_rep, self.y_haz = xs, yr, yh
 
-    def __len__(self):  return len(self.x)
-    def __getitem__(self, i):  return self.x[i], self.y_rep[i], self.y_haz[i]
+    def __len__(self) -> int:
+        return len(self.x)
+
+    def __getitem__(self, i):
+        return self.x[i], self.y_rep[i], self.y_haz[i]
 
 # ───────────────────────────── CSV utilities ──────────────────────────────
 def _list_train_variants(beta_key: str) -> List[str]:
@@ -92,7 +84,7 @@ def _list_train_variants(beta_key: str) -> List[str]:
     return paths
 
 def _load_baseline_df() -> pd.DataFrame:
-    """Always probe on Beta 1.0 testConfig_0."""
+    """Always probe on Beta 1.0 testConfig_0."""
     path = os.path.join(VARIANTS_DIR, "beta_1p0", "testConfig_0.csv")
     if not os.path.exists(path):
         raise FileNotFoundError(f"Baseline CSV not found: {path}")
@@ -143,7 +135,7 @@ def train_beta(
             x, y_r, y_h = x.to(DEVICE), y_r.to(DEVICE), y_h.to(DEVICE)
             opt.zero_grad()
             o_r, o_h = model(x)
-            loss = bce(o_r[:, -1], y_r) + 0.5 * bce(o_h, y_h)
+            loss = bce(o_r[:, -1], y_r) + 0.5 * bce(o_h, y_h)  # hazard now binary
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
@@ -156,7 +148,7 @@ def train_beta(
             torch.save(model.state_dict(),
                        os.path.join(model_dir, f"checkpoint_ep{epoch+1:03}.pt"))
 
-        # ------------------- baseline probe (every 5 epochs) -----------
+        # ------------------- baseline probe (every 5 epochs) -----------
         if epoch % 5 == 0:
             model.eval(); btot = 0.0
             with torch.no_grad():
@@ -176,7 +168,7 @@ def train_beta(
             best = epoch_loss
             torch.save(model.state_dict(), ckpt_best)
         if best < hp["target_loss"]:
-            print(f"{beta_key}|seed{seed} early‑stop @ ep {epoch}"
+            print(f"{beta_key}|seed{seed} early-stop @ ep {epoch}"
                   f" (best {best:.4e})"); break
 
     # ------------------- artefacts ---------------------------------------
@@ -186,9 +178,9 @@ def train_beta(
     json.dump(hp,        open(os.path.join(model_dir, "hp.json"), "w"), indent=2)
     print(f"{beta_key}|seed{seed} finished in {time.time() - t0:.1f}s | best {best:.4e}")
 
-# ───────────────────────────── entry‑point ────────────────────────────────
+# ───────────────────────────── entry-point ────────────────────────────────
 def main() -> None:
-    seeds = range(1)          # adjust as needed
+    seeds = range(10)          # adjust as needed
     for seed in seeds:
         for beta_key in BETA_KEYS:
             train_beta(GRUModel, beta_key, seed)
