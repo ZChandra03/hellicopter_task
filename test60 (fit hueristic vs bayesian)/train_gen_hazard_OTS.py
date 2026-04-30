@@ -99,8 +99,6 @@ class HelicopterDataset(Dataset):
       - hazard → truePredict (−1/+1 → 0/1)
     """
 
-    REPORT_EVIDENCE_INDEX = 14  # 15th point, after observation noise is already in evidence.
-
     def __init__(self, df: pd.DataFrame):
         xs, yr, yh = [], [], []
         for _, row in df.iterrows():
@@ -111,7 +109,7 @@ class HelicopterDataset(Dataset):
             x = torch.tensor(evid, dtype=torch.float32).unsqueeze(-1)
             xs.append(x)
 
-            yr.append(torch.tensor([1.0 if evid[self.REPORT_EVIDENCE_INDEX] > 0 else 0.0], dtype=torch.float32))
+            yr.append(torch.tensor([1.0 if evid[-1] > 0 else 0.0], dtype=torch.float32))
             yh.append(torch.tensor([(row["truePredict"] + 1) * 0.5], dtype=torch.float32))
 
         self.x, self.y_rep, self.y_haz = xs, yr, yh
