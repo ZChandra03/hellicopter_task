@@ -44,8 +44,6 @@ VARIANTS_DIR = os.path.join(BASE_DIR, "variants")
 
 GROUP_KEYS = [
     "sigma_1",
-    "sigma_2",
-    "sigma_3",
 ]
 
 VALID_LOSS_TYPES = {"reinforce", "bce"}
