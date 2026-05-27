@@ -9,14 +9,9 @@ This version:
     - loads each saved GRU checkpoint except checkpoint_best.pt and final.pt
     - extracts only the final GRU hidden state h_T
     - trains one linear decoder per checkpoint to predict truePredict
-    - sweeps all 10 seeds, all 3 head settings (rep, haz, both), and all 3 sigma groups
-    - plots decoder validation accuracy vs checkpoint
-    - saves 3 figures total: one for sigma_1, one for sigma_2, one for sigma_3
-
-Each sigma figure contains 3 subplots:
-    - rep
-    - haz
-    - both
+    - compares heuristic-trained and Bayesian-trained model sets
+    - sweeps all 10 seeds for the configured sigma groups and head settings
+    - plots decoder validation accuracy vs checkpoint for each model set
 
 Within each subplot:
     - each seed is a faint line
@@ -48,6 +43,10 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 VARIANTS_DIR = os.path.join(BASE_DIR, "variants")
 MODELS_ROOT = os.path.join(BASE_DIR, "models_OTS")
+MODEL_SETS = {
+    "heuristic_trained": os.path.join(MODELS_ROOT, "bce_rep_heuristic"),
+    "bayesian_trained": os.path.join(MODELS_ROOT, "bce_rep_true"),
+}
 
 GROUP_KEYS = ["sigma_1"]
 TRAIN_HEADS_LIST = ["rep"]
@@ -65,7 +64,7 @@ PRINT_EVERY = 50
 
 SAVE_RESULTS = True
 RESULTS_DIR = os.path.join(BASE_DIR, "decoder_results")
-RAW_RESULTS_CSV = "decoder_accuracy_by_checkpoint_all_runs.csv"
+RAW_RESULTS_CSV = "decoder_accuracy_by_checkpoint_model_sets.csv"
 
 NORM_PRED_ACC = {
     "sigma_1": 0.8213,
@@ -83,12 +82,8 @@ def parse_seq(value) -> list[float]:
     raise TypeError(f"Unsupported sequence type: {type(value)}")
 
 
-def model_dir_from_settings(group_key: str, loss_type: str, train_heads: str, seed: int) -> str:
-    if loss_type == "reinforce" and train_heads == "both":
-        root = MODELS_ROOT
-    else:
-        root = os.path.join(MODELS_ROOT, f"{loss_type}_{train_heads}")
-    return os.path.join(root, group_key, f"seed_{seed}")
+def model_dir_from_settings(model_set_root: str, group_key: str, seed: int) -> str:
+    return os.path.join(model_set_root, group_key, f"seed_{seed}")
 
 
 def load_hp(model_dir: str) -> dict:
@@ -243,6 +238,7 @@ class LinearDecoder(nn.Module):
 
 @dataclass
 class DecoderResult:
+    model_set: str
     group_key: str
     train_heads: str
     seed: int
@@ -362,8 +358,16 @@ def load_group_data(group_key: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     return train_df, val_df
 
 
-def run_one_setting(group_key: str, train_heads: str, seed: int, train_df: pd.DataFrame, val_df: pd.DataFrame) -> list[DecoderResult]:
-    model_dir = model_dir_from_settings(group_key, LOSS_TYPE, train_heads, seed)
+def run_one_setting(
+    model_set: str,
+    model_set_root: str,
+    group_key: str,
+    train_heads: str,
+    seed: int,
+    train_df: pd.DataFrame,
+    val_df: pd.DataFrame,
+) -> list[DecoderResult]:
+    model_dir = model_dir_from_settings(model_set_root, group_key, seed)
     if not os.path.isdir(model_dir):
         raise FileNotFoundError(f"Missing model directory: {model_dir}")
 
@@ -371,7 +375,7 @@ def run_one_setting(group_key: str, train_heads: str, seed: int, train_df: pd.Da
     results: list[DecoderResult] = []
 
     print()
-    print(f"group={group_key} heads={train_heads} seed={seed}")
+    print(f"model_set={model_set} group={group_key} heads={train_heads} seed={seed}")
     print(f"model_dir={model_dir}")
 
     for checkpoint_name in checkpoint_names:
@@ -391,6 +395,7 @@ def run_one_setting(group_key: str, train_heads: str, seed: int, train_df: pd.Da
 
         results.append(
             DecoderResult(
+                model_set=model_set,
                 group_key=group_key,
                 train_heads=train_heads,
                 seed=seed,
@@ -412,11 +417,18 @@ def plot_one_sigma(df: pd.DataFrame, group_key: str, output_dir: str) -> None:
         print(f"No results to plot for {group_key}")
         return
 
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharey=True)
+    fig, axes = plt.subplots(1, len(TRAIN_HEADS_LIST), figsize=(6.5 * len(TRAIN_HEADS_LIST), 5), sharey=True)
+    if len(TRAIN_HEADS_LIST) == 1:
+        axes = [axes]
+
+    colors = {
+        "heuristic_trained": "#b85c38",
+        "bayesian_trained": "#3566a8",
+    }
 
     for ax, train_heads in zip(axes, TRAIN_HEADS_LIST):
         head_df = sigma_df[sigma_df["train_heads"] == train_heads].copy()
-        head_df = head_df.sort_values(["seed", "checkpoint_epoch"])
+        head_df = head_df.sort_values(["model_set", "seed", "checkpoint_epoch"])
 
         if head_df.empty:
             ax.set_title(train_heads)
@@ -424,26 +436,34 @@ def plot_one_sigma(df: pd.DataFrame, group_key: str, output_dir: str) -> None:
             ax.grid(True, alpha=0.3)
             continue
 
-        for seed in sorted(head_df["seed"].unique()):
-            seed_df = head_df[head_df["seed"] == seed].sort_values("checkpoint_epoch")
-            ax.plot(
-                seed_df["checkpoint_epoch"],
-                seed_df["val_acc"],
-                linewidth=1.0,
-                alpha=0.22,
-            )
+        for model_set in MODEL_SETS:
+            set_df = head_df[head_df["model_set"] == model_set].copy()
+            if set_df.empty:
+                continue
 
-        mean_df = (
-            head_df.groupby("checkpoint_epoch", as_index=False)["val_acc"]
-            .mean()
-            .sort_values("checkpoint_epoch")
-        )
-        ax.plot(
-            mean_df["checkpoint_epoch"],
-            mean_df["val_acc"],
-            linewidth=3.0,
-            label="mean",
-        )
+            color = colors.get(model_set)
+            for seed in sorted(set_df["seed"].unique()):
+                seed_df = set_df[set_df["seed"] == seed].sort_values("checkpoint_epoch")
+                ax.plot(
+                    seed_df["checkpoint_epoch"],
+                    seed_df["val_acc"],
+                    linewidth=1.0,
+                    alpha=0.20,
+                    color=color,
+                )
+
+            mean_df = (
+                set_df.groupby("checkpoint_epoch", as_index=False)["val_acc"]
+                .mean()
+                .sort_values("checkpoint_epoch")
+            )
+            ax.plot(
+                mean_df["checkpoint_epoch"],
+                mean_df["val_acc"],
+                linewidth=3.0,
+                label=model_set,
+                color=color,
+            )
 
         if group_key in NORM_PRED_ACC:
             ax.axhline(
@@ -473,20 +493,29 @@ def main() -> None:
 
     for group_key in GROUP_KEYS:
         train_df, val_df = load_group_data(group_key)
-        for train_heads in TRAIN_HEADS_LIST:
-            for seed in SEEDS:
-                run_results = run_one_setting(group_key, train_heads, seed, train_df, val_df)
-                all_results.extend(run_results)
+        for model_set, model_set_root in MODEL_SETS.items():
+            for train_heads in TRAIN_HEADS_LIST:
+                for seed in SEEDS:
+                    run_results = run_one_setting(
+                        model_set,
+                        model_set_root,
+                        group_key,
+                        train_heads,
+                        seed,
+                        train_df,
+                        val_df,
+                    )
+                    all_results.extend(run_results)
 
     if not all_results:
         raise RuntimeError("No decoder results were produced")
 
     results_df = pd.DataFrame([r.__dict__ for r in all_results])
     results_df["checkpoint_label"] = results_df["checkpoint_epoch"].map(checkpoint_label_from_epoch)
-    results_df = results_df.sort_values(["group_key", "train_heads", "seed", "checkpoint_epoch"])
+    results_df = results_df.sort_values(["group_key", "model_set", "train_heads", "seed", "checkpoint_epoch"])
 
     print()
-    print(results_df[["group_key", "train_heads", "seed", "checkpoint_name", "val_acc"]].to_string(index=False))
+    print(results_df[["model_set", "group_key", "train_heads", "seed", "checkpoint_name", "val_acc"]].to_string(index=False))
 
     if SAVE_RESULTS:
         os.makedirs(RESULTS_DIR, exist_ok=True)
