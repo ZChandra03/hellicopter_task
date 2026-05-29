@@ -107,7 +107,7 @@ def get_default_hp(loss_type: str = "reinforce", train_heads: str = "both") -> d
         "batch_size": 25,
         "learning_rate": 3e-4,
         "target_loss": 1e-3,
-        "max_epochs": 50,
+        "max_epochs": 30,
         "max_csv": 20,
         "n_null_timesteps": N_NULL_TIMESTEPS,
         "loss_type": loss_type,
@@ -412,7 +412,7 @@ def train_group(
     if loss_type == "reinforce" and train_heads == "both":
         model_root = BASE_DIR
     else:
-        model_root = os.path.join(BASE_DIR, "models_OTS", f"{loss_type}_{train_heads}")
+        model_root = os.path.join(BASE_DIR, f"{loss_type}_{train_heads}")
 
     model_dir = os.path.join(model_root, group_key, f"seed_{seed}")
     os.makedirs(model_dir, exist_ok=True)
@@ -485,13 +485,13 @@ def train_group(
         val_loss, val_acc = compute_validation_metrics(model, val_df, hp)
         val_hist.append(val_loss)
 
-        if (epoch + 1) % 10 == 0:
+        if (epoch + 1) % 5 == 0:
             torch.save(
                 model.state_dict(),
                 os.path.join(model_dir, f"checkpoint_ep{epoch+1:03}.pt"),
             )
 
-        if epoch % 5 == 0 or epoch == n_total_epochs - 1:
+        if epoch % 5 == 0:
             print(
                 f"{group_key}|seed{seed} "
                 f"[{loss_type}/{train_heads}] "

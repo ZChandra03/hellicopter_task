@@ -391,6 +391,11 @@ def plot_results(
     ylabel: str,
     title: str,
     out_path: Path,
+    y_limits: tuple[float, float] = (0.0, 1.0),
+    normative_accuracy: float | None = None,
+    normative_label: str = "normative",
+    heuristic_accuracy: float | None = None,
+    heuristic_label: str = "last evidence",
 ) -> None:
     if metric_column not in df.columns:
         raise ValueError(f"Dataframe does not contain {metric_column!r}")
@@ -438,10 +443,28 @@ def plot_results(
         label="average",
         zorder=10,
     )
+    if normative_accuracy is not None:
+        ax.axhline(
+            normative_accuracy,
+            color="crimson",
+            linewidth=2.8,
+            linestyle="--",
+            label=f"{normative_label} ({normative_accuracy:.3f})",
+            zorder=9,
+        )
+    if heuristic_accuracy is not None:
+        ax.axhline(
+            heuristic_accuracy,
+            color="teal",
+            linewidth=2.8,
+            linestyle=":",
+            label=f"{heuristic_label} ({heuristic_accuracy:.3f})",
+            zorder=9,
+        )
 
     ax.set_xticks(range(len(checkpoint_table)))
     ax.set_xticklabels(checkpoint_table["checkpoint"], rotation=35, ha="right")
-    ax.set_ylim(0.0, 1.0)
+    ax.set_ylim(*y_limits)
     ax.set_xlabel("Checkpoint")
     ax.set_ylabel(ylabel)
     ax.set_title(title)
@@ -450,6 +473,38 @@ def plot_results(
     fig.tight_layout()
     fig.savefig(out_path, dpi=250, bbox_inches="tight")
     plt.close(fig)
+
+
+def load_normative_accuracy(cfg: dict[str, Any], metric_column: str) -> float:
+    normative_path = cfg["variant_root"].parent / "normative_model_test_accuracy.csv"
+    if not normative_path.exists():
+        raise FileNotFoundError(f"Missing normative accuracy CSV: {normative_path}")
+
+    normative_df = pd.read_csv(normative_path)
+    variant_folder = f"{cfg['variant_root'].name}/{Path(cfg['variant_subdir']).as_posix()}"
+    match = normative_df[normative_df["variant_folder"] == variant_folder]
+    if match.empty:
+        raise ValueError(f"No normative accuracy row found for {variant_folder!r}")
+    if metric_column not in normative_df.columns:
+        raise ValueError(f"{normative_path} does not contain {metric_column!r}")
+
+    return float(match.iloc[0][metric_column])
+
+
+def load_last_evidence_heuristic_accuracy(cfg: dict[str, Any]) -> float:
+    heuristic_path = cfg["variant_root"].parent / "last_evidence_report_heuristic_test_accuracy.csv"
+    if not heuristic_path.exists():
+        raise FileNotFoundError(f"Missing heuristic accuracy CSV: {heuristic_path}")
+
+    heuristic_df = pd.read_csv(heuristic_path)
+    variant_folder = f"{cfg['variant_root'].name}/{Path(cfg['variant_subdir']).as_posix()}"
+    match = heuristic_df[heuristic_df["variant_folder"] == variant_folder]
+    if match.empty:
+        raise ValueError(f"No last-evidence heuristic row found for {variant_folder!r}")
+    if "report_accuracy" not in heuristic_df.columns:
+        raise ValueError(f"{heuristic_path} does not contain 'report_accuracy'")
+
+    return float(match.iloc[0]["report_accuracy"])
 
 
 def main() -> None:
@@ -461,6 +516,9 @@ def main() -> None:
     csv_path = cfg["output_dir"] / "accuracy_by_checkpoint.csv"
     report_plot_path = cfg["output_dir"] / "report_accuracy_by_checkpoint.png"
     predict_plot_path = cfg["output_dir"] / "predict_accuracy_by_checkpoint.png"
+    report_zoom_plot_path = cfg["output_dir"] / "report_accuracy_by_checkpoint_80_90.png"
+    normative_report_accuracy = load_normative_accuracy(cfg, "report_accuracy")
+    heuristic_report_accuracy = load_last_evidence_heuristic_accuracy(cfg)
 
     df.to_csv(csv_path, index=False)
     plot_results(
@@ -479,9 +537,21 @@ def main() -> None:
         title=f"{cfg['model_subdir']} predict accuracy by checkpoint",
         out_path=predict_plot_path,
     )
+    plot_results(
+        df,
+        cfg,
+        metric_column="report_accuracy",
+        ylabel="Report accuracy",
+        title=f"{cfg['model_subdir']} report accuracy by checkpoint",
+        out_path=report_zoom_plot_path,
+        y_limits=(0.8, 0.9),
+        normative_accuracy=normative_report_accuracy,
+        heuristic_accuracy=heuristic_report_accuracy,
+    )
     print(f"Saved metrics to {csv_path}")
     print(f"Saved report plot to {report_plot_path}")
     print(f"Saved predict plot to {predict_plot_path}")
+    print(f"Saved report zoom plot to {report_zoom_plot_path}")
 
 
 if __name__ == "__main__":
