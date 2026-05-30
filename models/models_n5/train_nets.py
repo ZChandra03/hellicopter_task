@@ -55,7 +55,7 @@ VALID_TRAIN_HEADS = {"rep", "haz", "both"}
 LOSS_TYPE = "bce"          # "reinforce" or "bce"
 TRAIN_HEADS = "both"        # "rep", "haz", or "both"
 SEED_START = 0
-N_SEEDS = 1
+N_SEEDS = 10
 GROUPS_TO_RUN = GROUP_KEYS
 
 

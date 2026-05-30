@@ -6,10 +6,13 @@ import ast
 import importlib.util
 import json
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import torch
@@ -18,11 +21,28 @@ from torch.utils.data import DataLoader, Dataset
 
 BASE_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BASE_DIR.parents[1]
-UTILS_DIR = REPO_ROOT / "utils"
-if str(UTILS_DIR) not in sys.path:
-    sys.path.insert(0, str(UTILS_DIR))
+NORMATIVE_MODEL_PATH = REPO_ROOT / "utils" / "NormativeModel.py"
 
-from NormativeModel import BayesianObserver  # noqa: E402
+
+def import_bayesian_observer():
+    if not NORMATIVE_MODEL_PATH.exists():
+        raise FileNotFoundError(f"Could not find {NORMATIVE_MODEL_PATH}")
+
+    spec = importlib.util.spec_from_file_location("ots_normative_model", NORMATIVE_MODEL_PATH)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not import module from {NORMATIVE_MODEL_PATH}")
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        return module.BayesianObserver
+    except AttributeError as exc:
+        raise AttributeError(
+            f"{NORMATIVE_MODEL_PATH} does not define BayesianObserver"
+        ) from exc
+
+
+BayesianObserver = import_bayesian_observer()
 
 
 DEFAULT_CONFIG = BASE_DIR / "accuracy_by_checkpoint_config.json"
@@ -52,7 +72,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--variant-split", choices=["train", "val", "test"], default="test")
     parser.add_argument("--max-variant-csvs", type=int, default=None)
     parser.add_argument("--model-class", default="GRUModel")
-    parser.add_argument("--epochs", type=int, nargs="+", default=[4, 8])
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        nargs="+",
+        default=None,
+        help="Epochs to evaluate. Default: all checkpoint_ep*.pt files found in the seed folders.",
+    )
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--heuristic-accuracy-csv", type=Path, default=DEFAULT_HEURISTIC_CSV)
@@ -62,6 +88,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--bias", type=float, default=0.0)
     parser.add_argument("--zero-report", type=float, choices=[-1.0, 1.0], default=1.0)
     parser.add_argument("--seed", type=int, default=0, help="Seed for rare normative ties.")
+    parser.add_argument("--no-plots", action="store_true", help="Skip PNG plot generation.")
     return parser.parse_args()
 
 
@@ -89,7 +116,7 @@ def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
             "variant_split": args.variant_split,
             "max_variant_csvs": args.max_variant_csvs,
             "model_class": args.model_class,
-            "epochs": sorted(dict.fromkeys(args.epochs)),
+            "epochs": None if args.epochs is None else sorted(dict.fromkeys(args.epochs)),
             "batch_size": int(args.batch_size),
             "output_dir": args.output_dir.expanduser().resolve(),
             "heuristic_accuracy_csv": args.heuristic_accuracy_csv.expanduser().resolve(),
@@ -99,6 +126,7 @@ def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
             "bias": float(args.bias),
             "zero_report": float(args.zero_report),
             "seed": int(args.seed),
+            "make_plots": not args.no_plots,
         }
     )
     cfg["model_dir"] = cfg["model_root"] / cfg["model_subdir"]
@@ -309,6 +337,24 @@ def checkpoint_path(seed_dir: Path, epoch: int) -> Path:
     return path
 
 
+def discover_checkpoint_epochs(seed_dirs: list[Path]) -> list[int]:
+    epoch_sets: list[set[int]] = []
+    for seed_dir in seed_dirs:
+        epochs = set()
+        for path in seed_dir.glob("checkpoint_ep*.pt"):
+            match = CHECKPOINT_RE.fullmatch(path.name)
+            if match:
+                epochs.add(int(match.group(1)))
+        if not epochs:
+            raise FileNotFoundError(f"No checkpoint_ep*.pt files found in {seed_dir}")
+        epoch_sets.append(epochs)
+
+    shared_epochs = set.intersection(*epoch_sets)
+    if not shared_epochs:
+        raise FileNotFoundError("No checkpoint epochs are shared across all seed folders.")
+    return sorted(shared_epochs)
+
+
 @torch.inference_mode()
 def model_report_probabilities(
     model_cls,
@@ -379,6 +425,7 @@ def evaluate_models(cfg: dict[str, Any], trials: pd.DataFrame) -> pd.DataFrame:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cls = import_model_class(cfg["model_root"], cfg["model_class"])
     seed_dirs = list_seed_dirs(cfg["model_dir"])
+    epochs = cfg["epochs"] if cfg["epochs"] is not None else discover_checkpoint_epochs(seed_dirs)
     masks = subset_masks(trials, cfg["final_evidence_window"])
 
     true01 = trials["true_report01"].to_numpy(dtype=int)
@@ -394,6 +441,7 @@ def evaluate_models(cfg: dict[str, Any], trials: pd.DataFrame) -> pd.DataFrame:
     rows = []
     print(f"Using device: {device}")
     print(f"Loaded {len(trials)} trials from {cfg['variant_dir']}")
+    print(f"Evaluating epochs: {', '.join(str(epoch) for epoch in epochs)}")
 
     for seed_dir in seed_dirs:
         seed = int(SEED_RE.fullmatch(seed_dir.name).group(1))
@@ -412,7 +460,7 @@ def evaluate_models(cfg: dict[str, Any], trials: pd.DataFrame) -> pd.DataFrame:
                 f"n_null_timesteps={dataset_key[1]}"
             )
 
-        for epoch in cfg["epochs"]:
+        for epoch in epochs:
             ckpt = checkpoint_path(seed_dir, epoch)
             probs = model_report_probabilities(
                 model_cls=model_cls,
@@ -559,6 +607,208 @@ def write_subset_trial_counts(cfg: dict[str, Any], trials: pd.DataFrame) -> pd.D
     return pd.DataFrame(rows)
 
 
+METRIC_LABELS = {
+    "true_report": "true report",
+    "last_evidence_heuristic_report": "last evidence",
+    "normative_report": "normative",
+}
+SUBSET_LABELS = {
+    "all_test_trials": "All test trials",
+    "final_evidence_within_0.2_center": "Final evidence within 0.2 of center",
+    "final_evidence_wrong_side_vs_true_report": "Final evidence on wrong side",
+}
+POLICY_LABELS = {
+    "last_evidence_heuristic_report": "last evidence",
+    "normative_report": "normative",
+    "heuristic_matches_normative": "heuristic vs normative",
+}
+METRIC_COLORS = {
+    "true_report": "#2f5d8c",
+    "last_evidence_heuristic_report": "#228b73",
+    "normative_report": "#b3475f",
+}
+
+
+def plot_metric_by_epoch(
+    model_summary: pd.DataFrame,
+    metric_column: str,
+    std_column: str,
+    ylabel: str,
+    title: str,
+    out_path: Path,
+    y_limits: tuple[float, float] | None = None,
+) -> None:
+    subsets = list(model_summary["subset"].drop_duplicates())
+    fig, axes = plt.subplots(
+        1,
+        len(subsets),
+        figsize=(5.1 * len(subsets), 4.8),
+        sharey=True,
+        constrained_layout=False,
+    )
+    if len(subsets) == 1:
+        axes = [axes]
+
+    for ax, subset in zip(axes, subsets):
+        subset_df = model_summary[model_summary["subset"] == subset]
+        for metric_name, metric_df in subset_df.groupby("metric", sort=False):
+            metric_df = metric_df.sort_values("epoch")
+            x = metric_df["epoch"].to_numpy(dtype=float)
+            y = metric_df[metric_column].to_numpy(dtype=float)
+            yerr = metric_df[std_column].to_numpy(dtype=float)
+            yerr = np.where(np.isfinite(yerr), yerr, 0.0)
+            ax.errorbar(
+                x,
+                y,
+                yerr=yerr,
+                color=METRIC_COLORS.get(metric_name, "#555555"),
+                marker="o",
+                linewidth=2.0,
+                capsize=3,
+                label=METRIC_LABELS.get(metric_name, metric_name),
+            )
+
+        ax.set_title(SUBSET_LABELS.get(subset, subset), fontsize=10)
+        ax.set_xlabel("Epoch")
+        ax.set_xticks(sorted(subset_df["epoch"].drop_duplicates()))
+        ax.grid(axis="y", alpha=0.3)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        if y_limits is not None:
+            ax.set_ylim(*y_limits)
+
+    axes[0].set_ylabel(ylabel)
+    handles, labels = axes[-1].get_legend_handles_labels()
+    fig.legend(
+        handles,
+        labels,
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.03),
+        ncol=3,
+        frameon=False,
+    )
+    fig.suptitle(title, y=0.98)
+    fig.subplots_adjust(top=0.74, bottom=0.16, wspace=0.08)
+    fig.savefig(out_path, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_reference_policies(reference_summary: pd.DataFrame, out_path: Path) -> None:
+    subsets = list(reference_summary["subset"].drop_duplicates())
+    policies = list(reference_summary["policy"].drop_duplicates())
+    colors = ["#228b73", "#b3475f", "#6b7280"]
+    fig, ax = plt.subplots(figsize=(max(7.0, 2.8 * len(subsets)), 4.6))
+
+    x = np.arange(len(subsets))
+    width = 0.22
+    offsets = np.linspace(-width, width, len(policies))
+    for offset, policy, color in zip(offsets, policies, colors):
+        policy_df = (
+            reference_summary[reference_summary["policy"] == policy]
+            .set_index("subset")
+            .reindex(subsets)
+        )
+        ax.bar(
+            x + offset,
+            policy_df["report_accuracy_vs_true"],
+            width,
+            label=POLICY_LABELS.get(policy, policy),
+            color=color,
+            alpha=0.9,
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels([SUBSET_LABELS.get(subset, subset) for subset in subsets], rotation=18, ha="right")
+    ax.set_ylim(0, 1.04)
+    ax.set_ylabel("Accuracy / agreement")
+    ax.set_title("Reference report policies by trial subset")
+    ax.grid(axis="y", alpha=0.3)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.legend(frameon=False, ncol=min(3, len(policies)))
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_subset_counts(subset_counts: pd.DataFrame, out_path: Path) -> None:
+    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    x = np.arange(len(subset_counts))
+    bars = ax.bar(
+        x,
+        subset_counts["n_trials"],
+        color=["#2f5d8c", "#228b73", "#b3475f"][: len(subset_counts)],
+        alpha=0.9,
+    )
+    ax.set_xticks(x)
+    ax.set_xticklabels(
+        [SUBSET_LABELS.get(subset, subset) for subset in subset_counts["subset"]],
+        rotation=18,
+        ha="right",
+    )
+    ax.set_ylabel("Trials")
+    ax.set_title("Trial counts by subset")
+    ax.grid(axis="y", alpha=0.3)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    for bar, frac in zip(bars, subset_counts["fraction_of_trials"]):
+        ax.text(
+            bar.get_x() + bar.get_width() / 2,
+            bar.get_height(),
+            f"{frac:.1%}",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
+def make_plots(
+    cfg: dict[str, Any],
+    model_summary: pd.DataFrame,
+    reference_summary_df: pd.DataFrame,
+    subset_counts: pd.DataFrame,
+) -> list[Path]:
+    plot_paths = [
+        cfg["output_dir"] / "report_policy_match_accuracy_by_epoch.png",
+        cfg["output_dir"] / "report_policy_match_bce_by_epoch.png",
+        cfg["output_dir"] / "report_policy_model_plus_rate_by_epoch.png",
+        cfg["output_dir"] / "reference_report_policy_accuracy_by_subset.png",
+        cfg["output_dir"] / "report_policy_match_subset_counts.png",
+    ]
+    plot_metric_by_epoch(
+        model_summary,
+        metric_column="match_accuracy_mean",
+        std_column="match_accuracy_std",
+        ylabel="Policy match accuracy",
+        title=f"{cfg['model_subdir']} report policy match",
+        out_path=plot_paths[0],
+        y_limits=(0, 1.04),
+    )
+    plot_metric_by_epoch(
+        model_summary,
+        metric_column="bce_mean",
+        std_column="bce_std",
+        ylabel="Binary cross entropy",
+        title=f"{cfg['model_subdir']} report policy BCE",
+        out_path=plot_paths[1],
+    )
+    plot_metric_by_epoch(
+        model_summary,
+        metric_column="model_plus_rate_mean",
+        std_column="model_plus_rate_std",
+        ylabel="Model + report rate",
+        title=f"{cfg['model_subdir']} report sign bias",
+        out_path=plot_paths[2],
+        y_limits=(0, 1.04),
+    )
+    plot_reference_policies(reference_summary_df, plot_paths[3])
+    plot_subset_counts(subset_counts, plot_paths[4])
+    return plot_paths
+
+
 def main() -> None:
     args = parse_args()
     cfg = build_run_config(args)
@@ -582,6 +832,7 @@ def main() -> None:
     model_summary.to_csv(summary_path, index=False)
     reference_summary.to_csv(reference_path, index=False)
     subset_counts.to_csv(subset_counts_path, index=False)
+    plot_paths = make_plots(cfg, model_summary, reference_summary, subset_counts) if cfg["make_plots"] else []
 
     print()
     print("Subset counts")
@@ -597,6 +848,8 @@ def main() -> None:
     print(f"Saved model summary to {summary_path}")
     print(f"Saved reference summary to {reference_path}")
     print(f"Saved subset counts to {subset_counts_path}")
+    for plot_path in plot_paths:
+        print(f"Saved plot to {plot_path}")
 
 
 if __name__ == "__main__":
