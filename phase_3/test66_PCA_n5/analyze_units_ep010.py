@@ -25,6 +25,11 @@ from torch.utils.data import DataLoader, Dataset
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = BASE_DIR / "accuracy_by_checkpoint_config.json"
+DEFAULT_MODEL_SUBDIR = "bce_both/sigma_1"
+DEFAULT_VARIANT_SUBDIR = "sigma_1"
+DEFAULT_VARIANT_SPLIT = "test"
+DEFAULT_MAX_VARIANT_CSVS = None
+DEFAULT_MODEL_CLASS = "GRUModel"
 CHECKPOINT_NAME = "checkpoint_ep010.pt"
 
 
@@ -79,14 +84,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Analyze hazard/state unit selectivity for one seed at checkpoint_ep010.pt."
     )
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
-    parser.add_argument("--model-subdir", default="bce_both/sigma_1")
-    parser.add_argument("--variant-subdir", default=None)
-    parser.add_argument("--variant-split", default="test", choices=["train", "val", "test"])
-    parser.add_argument("--max-variant-csvs", type=int, default=None)
-    parser.add_argument("--model-class", default="GRUModel")
     parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--top-k", type=int, default=20)
     parser.add_argument("--n-pcs", type=int, default=10)
     parser.add_argument("--cv-folds", type=int, default=5)
@@ -109,17 +107,17 @@ def load_config(path: Path) -> dict[str, Any]:
 
 
 def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
-    cfg = load_config(args.config.resolve())
-    variant_subdir = args.variant_subdir or Path(args.model_subdir).name
+    cfg = load_config(DEFAULT_CONFIG)
+    model_subdir = DEFAULT_MODEL_SUBDIR
+    variant_subdir = DEFAULT_VARIANT_SUBDIR or Path(model_subdir).name
     cfg.update(
         {
-            "model_subdir": args.model_subdir,
+            "model_subdir": model_subdir,
             "variant_subdir": variant_subdir,
-            "variant_split": args.variant_split,
-            "max_variant_csvs": args.max_variant_csvs,
-            "model_class": args.model_class,
+            "variant_split": DEFAULT_VARIANT_SPLIT,
+            "max_variant_csvs": DEFAULT_MAX_VARIANT_CSVS,
+            "model_class": DEFAULT_MODEL_CLASS,
             "seed": args.seed,
-            "batch_size": args.batch_size,
             "top_k": args.top_k,
             "n_pcs": args.n_pcs,
             "cv_folds": args.cv_folds,
@@ -506,11 +504,12 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cls = import_model_class(cfg["model_root"], cfg["model_class"])
     model = load_model(model_cls, cfg, device)
+    batch_size = int(load_hp(cfg["seed_dir"]).get("batch_size", 256))
     csvs = list_eval_csvs(cfg)
     dataset = HiddenStateDataset(csvs)
     dataloader = DataLoader(
         dataset,
-        batch_size=int(cfg["batch_size"]),
+        batch_size=batch_size,
         shuffle=False,
         collate_fn=collate_batch,
     )
@@ -518,6 +517,7 @@ def main() -> None:
     print(f"Using device: {device}")
     print(f"Analyzing {cfg['checkpoint_path']}")
     print(f"Loaded {len(dataset)} trials from {len(csvs)} {cfg['variant_split']} CSVs")
+    print(f"Using evaluation batch size from seed_{cfg['seed']}/hp.json: {batch_size}")
 
     H = collect_hidden_states(model, dataloader, device)
     unit_df, state_time, haz_time, probe_metrics = build_unit_summary(H, dataset, model, cfg)

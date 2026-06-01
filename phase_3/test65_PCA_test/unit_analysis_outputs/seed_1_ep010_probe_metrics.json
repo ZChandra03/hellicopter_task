@@ -1,0 +1,9 @@
+{
+  "haz_probe_acc_mean": 0.8263333333333334,
+  "haz_probe_acc_std": 0.008359957469322984,
+  "state_probe_acc_mean": 0.8551250000000001,
+  "state_probe_acc_std": 0.0021250816977759295,
+  "n_trials": 6000.0,
+  "n_timesteps": 20.0,
+  "n_units": 128.0
+}

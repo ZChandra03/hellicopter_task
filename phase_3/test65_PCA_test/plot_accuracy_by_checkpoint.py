@@ -17,7 +17,12 @@ from torch.utils.data import DataLoader, Dataset
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG = BASE_DIR / "accuracy_by_checkpoint_config.json"
+DEFAULT_CONFIG = BASE_DIR / "config.json"
+DEFAULT_MODEL_SUBDIR = "bce_both/sigma_1"
+DEFAULT_VARIANT_SUBDIR = "sigma_1"
+DEFAULT_VARIANT_SPLIT = "test"
+DEFAULT_MAX_VARIANT_CSVS = None
+DEFAULT_MODEL_CLASS = "GRUModel"
 CHECKPOINT_RE = re.compile(r"checkpoint_ep(\d+)\.pt$")
 SEED_RE = re.compile(r"seed_(\d+)$")
 
@@ -58,45 +63,6 @@ def parse_args() -> argparse.Namespace:
         description="Plot report and predict accuracy by checkpoint for each seed model."
     )
     parser.add_argument(
-        "--config",
-        type=Path,
-        default=DEFAULT_CONFIG,
-        help=f"Path to config JSON. Default: {DEFAULT_CONFIG}",
-    )
-    parser.add_argument(
-        "--model-subdir",
-        default="bce_both/sigma_1",
-        help="Experiment folder under model_root. Default: bce_both/sigma_1",
-    )
-    parser.add_argument(
-        "--variant-subdir",
-        default=None,
-        help="Variant folder under variant_root. Defaults to the model-subdir leaf, e.g. sigma_1.",
-    )
-    parser.add_argument(
-        "--variant-split",
-        default="test",
-        choices=["train", "val", "test"],
-        help="Which variant CSV split to evaluate. Default: test",
-    )
-    parser.add_argument(
-        "--max-variant-csvs",
-        type=int,
-        default=None,
-        help="Optional cap on the number of variant CSVs to evaluate.",
-    )
-    parser.add_argument(
-        "--model-class",
-        default="GRUModel",
-        help="Model class in model_root/rnn_models.py. Default: GRUModel",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=256,
-        help="Evaluation batch size. Default: 256",
-    )
-    parser.add_argument(
         "--output-dir",
         type=Path,
         default=BASE_DIR / "outputs",
@@ -130,17 +96,17 @@ def load_config(path: Path) -> dict[str, Any]:
 
 
 def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
-    cfg = load_config(args.config.resolve())
-    variant_subdir = args.variant_subdir or Path(args.model_subdir).name
+    cfg = load_config(DEFAULT_CONFIG)
+    model_subdir = DEFAULT_MODEL_SUBDIR
+    variant_subdir = DEFAULT_VARIANT_SUBDIR or Path(model_subdir).name
 
     cfg.update(
         {
-            "model_subdir": args.model_subdir,
+            "model_subdir": model_subdir,
             "variant_subdir": variant_subdir,
-            "variant_split": args.variant_split,
-            "max_variant_csvs": args.max_variant_csvs,
-            "model_class": args.model_class,
-            "batch_size": args.batch_size,
+            "variant_split": DEFAULT_VARIANT_SPLIT,
+            "max_variant_csvs": DEFAULT_MAX_VARIANT_CSVS,
+            "model_class": DEFAULT_MODEL_CLASS,
             "include_checkpoint_best": not args.skip_best,
             "include_final": not args.skip_final,
             "output_dir": args.output_dir.expanduser().resolve(),
@@ -311,20 +277,23 @@ def collect_results(cfg: dict[str, Any]) -> pd.DataFrame:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cls = import_model_class(cfg["model_root"], cfg["model_class"])
+    seed_dirs = list_seed_dirs(cfg["model_dir"])
+    batch_size = int(load_hp(seed_dirs[0]).get("batch_size", 256))
     csvs = list_eval_csvs(cfg)
     dataset = HelicopterEvalDataset(csvs)
     dataloader = DataLoader(
         dataset,
-        batch_size=int(cfg["batch_size"]),
+        batch_size=batch_size,
         shuffle=False,
         collate_fn=collate_batch,
     )
 
     print(f"Evaluating {len(dataset)} trials from {len(csvs)} {cfg['variant_split']} CSVs")
     print(f"Using device: {device}")
+    print(f"Using evaluation batch size from {seed_dirs[0].name}/hp.json: {batch_size}")
 
     rows = []
-    for seed_dir in list_seed_dirs(cfg["model_dir"]):
+    for seed_dir in seed_dirs:
         seed = int(SEED_RE.fullmatch(seed_dir.name).group(1))
         hp = load_hp(seed_dir)
         for order, ckpt in enumerate(list_checkpoints(seed_dir, cfg)):

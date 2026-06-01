@@ -1,0 +1,10 @@
+{
+  "n_input": 1,
+  "n_rnn": 128,
+  "batch_size": 25,
+  "learning_rate": 0.0003,
+  "target_loss": 0.01,
+  "epochs_per_csv": 100,
+  "max_csv": 20,
+  "max_epochs": 2000
+}

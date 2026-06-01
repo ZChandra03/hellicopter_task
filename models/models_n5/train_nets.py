@@ -15,7 +15,8 @@ This version:
 
 Default run below is set to:
   LOSS_TYPE = "bce"
-  TRAIN_HEADS = "rep"
+  TRAIN_HEADS_TO_RUN = ["rep", "haz", "both"]
+  GROUPS_TO_RUN = ["sigma_1", "sigma_2", "sigma_3"]
 """
 
 from __future__ import annotations
@@ -45,6 +46,8 @@ N_NULL_TIMESTEPS = 4
 
 GROUP_KEYS = [
     "sigma_1",
+    "sigma_2",
+    "sigma_3",
 ]
 
 VALID_LOSS_TYPES = {"reinforce", "bce"}
@@ -53,7 +56,7 @@ VALID_TRAIN_HEADS = {"rep", "haz", "both"}
 # Hardcoded run settings.
 # Change only these values when you want a different training mode.
 LOSS_TYPE = "bce"          # "reinforce" or "bce"
-TRAIN_HEADS = "both"        # "rep", "haz", or "both"
+TRAIN_HEADS_TO_RUN = ["rep", "haz", "both"]  # any of "rep", "haz", or "both"
 SEED_START = 0
 N_SEEDS = 10
 GROUPS_TO_RUN = GROUP_KEYS
@@ -62,8 +65,14 @@ GROUPS_TO_RUN = GROUP_KEYS
 def validate_run_config() -> None:
     if LOSS_TYPE not in VALID_LOSS_TYPES:
         raise ValueError(f"LOSS_TYPE must be one of {sorted(VALID_LOSS_TYPES)}, got {LOSS_TYPE!r}")
-    if TRAIN_HEADS not in VALID_TRAIN_HEADS:
-        raise ValueError(f"TRAIN_HEADS must be one of {sorted(VALID_TRAIN_HEADS)}, got {TRAIN_HEADS!r}")
+    if not isinstance(TRAIN_HEADS_TO_RUN, (list, tuple)) or len(TRAIN_HEADS_TO_RUN) == 0:
+        raise ValueError("TRAIN_HEADS_TO_RUN must be a non-empty list or tuple")
+    invalid_heads = sorted(set(TRAIN_HEADS_TO_RUN) - VALID_TRAIN_HEADS)
+    if invalid_heads:
+        raise ValueError(
+            f"TRAIN_HEADS_TO_RUN contains invalid values {invalid_heads}; "
+            f"valid values are {sorted(VALID_TRAIN_HEADS)}"
+        )
     if not isinstance(SEED_START, int):
         raise TypeError("SEED_START must be an int")
     if not isinstance(N_SEEDS, int) or N_SEEDS <= 0:
@@ -535,13 +544,14 @@ def main() -> None:
 
     for seed in seeds:
         for group_key in GROUPS_TO_RUN:
-            train_group(
-                GRUModel,
-                group_key,
-                seed,
-                loss_type=LOSS_TYPE,
-                train_heads="both",
-            )
+            for train_heads in TRAIN_HEADS_TO_RUN:
+                train_group(
+                    GRUModel,
+                    group_key,
+                    seed,
+                    loss_type=LOSS_TYPE,
+                    train_heads=train_heads,
+                )
     print("All trainings complete.")
 
 

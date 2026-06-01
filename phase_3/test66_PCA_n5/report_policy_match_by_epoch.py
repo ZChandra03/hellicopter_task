@@ -46,6 +46,11 @@ BayesianObserver = import_bayesian_observer()
 
 
 DEFAULT_CONFIG = BASE_DIR / "accuracy_by_checkpoint_config.json"
+DEFAULT_MODEL_SUBDIR = "bce_both/sigma_1"
+DEFAULT_VARIANT_SUBDIR = "sigma_1"
+DEFAULT_VARIANT_SPLIT = "test"
+DEFAULT_MAX_VARIANT_CSVS = None
+DEFAULT_MODEL_CLASS = "GRUModel"
 DEFAULT_OUTPUT_DIR = BASE_DIR / "outputs" / "report_policy_match"
 DEFAULT_HEURISTIC_CSV = REPO_ROOT / "variants" / "last_evidence_report_heuristic_test_accuracy.csv"
 DEFAULT_NORMATIVE_CSV = REPO_ROOT / "variants" / "normative_model_test_accuracy.csv"
@@ -62,16 +67,6 @@ def parse_args() -> argparse.Namespace:
             "last-evidence heuristic report, and normative Bayesian report."
         )
     )
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
-    parser.add_argument("--model-subdir", default="bce_both/sigma_1")
-    parser.add_argument(
-        "--variant-subdir",
-        default=None,
-        help="Variant folder under variant_root. Defaults to the model-subdir leaf.",
-    )
-    parser.add_argument("--variant-split", choices=["train", "val", "test"], default="test")
-    parser.add_argument("--max-variant-csvs", type=int, default=None)
-    parser.add_argument("--model-class", default="GRUModel")
     parser.add_argument(
         "--epochs",
         type=int,
@@ -79,7 +74,6 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Epochs to evaluate. Default: all checkpoint_ep*.pt files found in the seed folders.",
     )
-    parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--heuristic-accuracy-csv", type=Path, default=DEFAULT_HEURISTIC_CSV)
     parser.add_argument("--normative-accuracy-csv", type=Path, default=DEFAULT_NORMATIVE_CSV)
@@ -107,17 +101,17 @@ def load_config(path: Path) -> dict[str, Any]:
 
 
 def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
-    cfg = load_config(args.config.expanduser().resolve())
-    variant_subdir = args.variant_subdir or Path(args.model_subdir).name
+    cfg = load_config(DEFAULT_CONFIG)
+    model_subdir = DEFAULT_MODEL_SUBDIR
+    variant_subdir = DEFAULT_VARIANT_SUBDIR or Path(model_subdir).name
     cfg.update(
         {
-            "model_subdir": args.model_subdir,
+            "model_subdir": model_subdir,
             "variant_subdir": variant_subdir,
-            "variant_split": args.variant_split,
-            "max_variant_csvs": args.max_variant_csvs,
-            "model_class": args.model_class,
+            "variant_split": DEFAULT_VARIANT_SPLIT,
+            "max_variant_csvs": DEFAULT_MAX_VARIANT_CSVS,
+            "model_class": DEFAULT_MODEL_CLASS,
             "epochs": None if args.epochs is None else sorted(dict.fromkeys(args.epochs)),
-            "batch_size": int(args.batch_size),
             "output_dir": args.output_dir.expanduser().resolve(),
             "heuristic_accuracy_csv": args.heuristic_accuracy_csv.expanduser().resolve(),
             "normative_accuracy_csv": args.normative_accuracy_csv.expanduser().resolve(),
@@ -168,7 +162,7 @@ def import_model_class(model_root: Path, class_name: str):
 
 
 def list_seed_dirs(model_dir: Path) -> list[Path]:
-    seed_dirs = [p for p in model_dir.iterdir() if p.is_dir() and SEED_RE.fullmatch(p.name)]
+    seed_dirs = [p for p in model_dir.iterdir() if p.is_dir() and p.name == "seed_0"]
     seed_dirs.sort(key=lambda p: int(SEED_RE.fullmatch(p.name).group(1)))
     if not seed_dirs:
         raise FileNotFoundError(f"No seed_* directories found in {model_dir}")
@@ -449,15 +443,17 @@ def evaluate_models(cfg: dict[str, Any], trials: pd.DataFrame) -> pd.DataFrame:
         dataset_key = (int(hp["n_input"]), int(hp["n_null_timesteps"]))
         if dataset_key not in dataloaders:
             dataset = ReportPolicyDataset(trials, *dataset_key)
+            batch_size = int(hp.get("batch_size", 256))
             dataloaders[dataset_key] = DataLoader(
                 dataset,
-                batch_size=cfg["batch_size"],
+                batch_size=batch_size,
                 shuffle=False,
                 collate_fn=collate_batch,
             )
             print(
                 f"Prepared model inputs with n_input={dataset_key[0]}, "
-                f"n_null_timesteps={dataset_key[1]}"
+                f"n_null_timesteps={dataset_key[1]}, "
+                f"batch_size={batch_size} from {seed_dir.name}/hp.json"
             )
 
         for epoch in epochs:

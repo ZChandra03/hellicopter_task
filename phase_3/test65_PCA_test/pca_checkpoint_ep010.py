@@ -19,7 +19,12 @@ from torch.utils.data import DataLoader, Dataset
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG = BASE_DIR / "accuracy_by_checkpoint_config.json"
+DEFAULT_CONFIG = BASE_DIR / "config.json"
+DEFAULT_MODEL_SUBDIR = "bce_both/sigma_1"
+DEFAULT_VARIANT_SUBDIR = "sigma_1"
+DEFAULT_VARIANT_SPLIT = "test"
+DEFAULT_MAX_VARIANT_CSVS = None
+DEFAULT_MODEL_CLASS = "GRUModel"
 SEED_RE = re.compile(r"seed_(\d+)$")
 CHECKPOINT_NAME = "checkpoint_ep010.pt"
 
@@ -66,39 +71,6 @@ def parse_args() -> argparse.Namespace:
         description="Run PCA on seed 1 checkpoint_ep010 hidden states."
     )
     parser.add_argument(
-        "--config",
-        type=Path,
-        default=DEFAULT_CONFIG,
-        help=f"Path to root config JSON. Default: {DEFAULT_CONFIG}",
-    )
-    parser.add_argument(
-        "--model-subdir",
-        default="bce_both/sigma_1",
-        help="Experiment folder under model_root. Default: bce_both/sigma_1",
-    )
-    parser.add_argument(
-        "--variant-subdir",
-        default=None,
-        help="Variant folder under variant_root. Defaults to the model-subdir leaf, e.g. sigma_1.",
-    )
-    parser.add_argument(
-        "--variant-split",
-        default="test",
-        choices=["train", "val", "test"],
-        help="Which variant CSV split to run through the models. Default: test",
-    )
-    parser.add_argument(
-        "--max-variant-csvs",
-        type=int,
-        default=None,
-        help="Optional cap on the number of variant CSVs.",
-    )
-    parser.add_argument(
-        "--model-class",
-        default="GRUModel",
-        help="Model class in model_root/rnn_models.py. Default: GRUModel",
-    )
-    parser.add_argument(
         "--n-components",
         type=int,
         default=3,
@@ -109,12 +81,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="Seed to fit and transform. Default: 1",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=256,
-        help="Evaluation batch size in trials. Default: 256",
     )
     parser.add_argument(
         "--max-plot-points",
@@ -146,18 +112,18 @@ def load_config(path: Path) -> dict[str, Any]:
 
 
 def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
-    cfg = load_config(args.config.resolve())
-    variant_subdir = args.variant_subdir or Path(args.model_subdir).name
+    cfg = load_config(DEFAULT_CONFIG)
+    model_subdir = DEFAULT_MODEL_SUBDIR
+    variant_subdir = DEFAULT_VARIANT_SUBDIR or Path(model_subdir).name
     cfg.update(
         {
-            "model_subdir": args.model_subdir,
+            "model_subdir": model_subdir,
             "variant_subdir": variant_subdir,
-            "variant_split": args.variant_split,
-            "max_variant_csvs": args.max_variant_csvs,
-            "model_class": args.model_class,
+            "variant_split": DEFAULT_VARIANT_SPLIT,
+            "max_variant_csvs": DEFAULT_MAX_VARIANT_CSVS,
+            "model_class": DEFAULT_MODEL_CLASS,
             "n_components": args.n_components,
             "seed": args.seed,
-            "batch_size": args.batch_size,
             "max_plot_points": args.max_plot_points,
             "output_dir": args.output_dir.expanduser().resolve(),
             "checkpoint_name": CHECKPOINT_NAME,
@@ -543,11 +509,12 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cls = import_model_class(cfg["model_root"], cfg["model_class"])
     seed_dir = get_seed_dir(cfg["model_dir"], int(cfg["seed"]), cfg["checkpoint_name"])
+    batch_size = int(load_hp(seed_dir).get("batch_size", 256))
     csvs = list_eval_csvs(cfg)
     dataset = HelicopterPCADataset(csvs)
     dataloader = DataLoader(
         dataset,
-        batch_size=int(cfg["batch_size"]),
+        batch_size=batch_size,
         shuffle=False,
         collate_fn=collate_batch,
     )
@@ -555,6 +522,7 @@ def main() -> None:
     print(f"Using device: {device}")
     print(f"Loaded {len(dataset)} trials from {len(csvs)} {cfg['variant_split']} CSVs")
     print(f"Using {seed_dir.name}/{cfg['checkpoint_name']}")
+    print(f"Using evaluation batch size from {seed_dir.name}/hp.json: {batch_size}")
 
     pca = fit_seed_pca(model_cls, seed_dir, dataloader, cfg, device)
     variance_path = cfg["output_dir"] / "pca_ep010_explained_variance.csv"

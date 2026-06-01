@@ -1,0 +1,13 @@
+{
+  "gru_report_acc": 0.6888333333333333,
+  "gru_hazard_acc": 0.628,
+  "fitted_report_acc": 0.686,
+  "fitted_hazard_acc": 0.6273333333333333,
+  "optimal_report_acc": 0.6951666666666667,
+  "optimal_hazard_acc": 0.6635,
+  "report_kappa": 0.9416367976766776,
+  "hazard_kappa": 0.6209440428653561,
+  "fitted_sigma": 0.6119149805754885,
+  "fitted_bias": -2.0999341519532347e-06,
+  "true_sigma": 2.0
+}

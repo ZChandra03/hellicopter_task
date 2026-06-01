@@ -1,0 +1,8 @@
+{
+  "n_input": 1,
+  "n_rnn": 128,
+  "batch_size": 25,
+  "max_epochs": 1000,
+  "learning_rate": 0.0003,
+  "target_loss": 0.002
+}

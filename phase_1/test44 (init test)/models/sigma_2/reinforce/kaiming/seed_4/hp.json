@@ -1,0 +1,14 @@
+{
+  "n_input": 1,
+  "n_rnn": 128,
+  "batch_size": 25,
+  "learning_rate": 0.0003,
+  "target_loss": 0.01,
+  "epochs_per_csv": 4,
+  "max_csv": 500,
+  "max_epochs": 2000,
+  "sigma_key": "sigma_2",
+  "loss_type": "reinforce",
+  "init_type": "kaiming",
+  "seed": 4
+}

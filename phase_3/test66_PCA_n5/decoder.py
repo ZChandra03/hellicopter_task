@@ -21,6 +21,9 @@ from torch.utils.data import DataLoader, Dataset
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = BASE_DIR / "accuracy_by_checkpoint_config.json"
+DEFAULT_MODEL_SUBDIR = "bce_both/sigma_1"
+DEFAULT_VARIANT_SUBDIR = "sigma_1"
+DEFAULT_MODEL_CLASS = "GRUModel"
 CHECKPOINT_RE = re.compile(r"checkpoint_ep(\d+)\.pt$")
 SEED_RE = re.compile(r"seed_(\d+)$")
 
@@ -31,27 +34,6 @@ def parse_args() -> argparse.Namespace:
             "Train linear decoders from checkpoint hidden states using the same "
             "model and variant configuration as plot_accuracy_by_checkpoint.py."
         )
-    )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=DEFAULT_CONFIG,
-        help=f"Path to config JSON. Default: {DEFAULT_CONFIG}",
-    )
-    parser.add_argument(
-        "--model-subdir",
-        default="models_OTS/bce_both/sigma_1",
-        help="Experiment folder under model_root. Default: models_OTS/bce_both/sigma_1",
-    )
-    parser.add_argument(
-        "--variant-subdir",
-        default=None,
-        help="Variant folder under variant_root. Defaults to the model-subdir leaf, e.g. sigma_1.",
-    )
-    parser.add_argument(
-        "--model-class",
-        default="GRUModel",
-        help="Model class in model_root/rnn_models.py. Default: GRUModel",
     )
     parser.add_argument(
         "--train-split",
@@ -66,22 +48,10 @@ def parse_args() -> argparse.Namespace:
         help="Variant split used to validate the decoder. Default: val",
     )
     parser.add_argument(
-        "--max-train-csvs",
-        type=int,
-        default=20,
-        help="Optional cap on decoder training CSVs. Default: 20",
-    )
-    parser.add_argument(
         "--max-val-csvs",
         type=int,
         default=5,
         help="Optional cap on decoder validation CSVs. Default: 5",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=128,
-        help="Hidden-state extraction batch size. Default: 128",
     )
     parser.add_argument(
         "--decoder-epochs",
@@ -141,18 +111,17 @@ def load_config(path: Path) -> dict[str, Any]:
 
 
 def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
-    cfg = load_config(args.config.resolve())
-    variant_subdir = args.variant_subdir or Path(args.model_subdir).name
+    cfg = load_config(DEFAULT_CONFIG)
+    model_subdir = DEFAULT_MODEL_SUBDIR
+    variant_subdir = DEFAULT_VARIANT_SUBDIR or Path(model_subdir).name
     cfg.update(
         {
-            "model_subdir": args.model_subdir,
+            "model_subdir": model_subdir,
             "variant_subdir": variant_subdir,
-            "model_class": args.model_class,
+            "model_class": DEFAULT_MODEL_CLASS,
             "train_split": args.train_split,
             "val_split": args.val_split,
-            "max_train_csvs": args.max_train_csvs,
             "max_val_csvs": args.max_val_csvs,
-            "batch_size": args.batch_size,
             "decoder_epochs": args.decoder_epochs,
             "decoder_lr": args.decoder_lr,
             "decoder_weight_decay": args.decoder_weight_decay,
@@ -511,7 +480,7 @@ def build_dataloaders(
     train_csvs = list_variant_csvs(
         cfg["variant_dir"],
         cfg["train_split"],
-        cfg["max_train_csvs"],
+        int(hp["max_csv"]) if hp.get("max_csv") is not None else None,
     )
     val_csvs = list_variant_csvs(
         cfg["variant_dir"],
@@ -523,21 +492,23 @@ def build_dataloaders(
 
     train_dataset = TrialDataset(train_csvs, n_input, n_null_timesteps)
     val_dataset = TrialDataset(val_csvs, n_input, n_null_timesteps)
+    batch_size = int(hp.get("batch_size", 128))
     train_loader = DataLoader(
         train_dataset,
-        batch_size=int(cfg["batch_size"]),
+        batch_size=batch_size,
         shuffle=False,
         collate_fn=collate_batch,
     )
     val_loader = DataLoader(
         val_dataset,
-        batch_size=int(cfg["batch_size"]),
+        batch_size=batch_size,
         shuffle=False,
         collate_fn=collate_batch,
     )
     print(
         f"Prepared decoder data: train={len(train_dataset)} val={len(val_dataset)} "
-        f"n_input={n_input} n_null_timesteps={n_null_timesteps}"
+        f"n_input={n_input} n_null_timesteps={n_null_timesteps} "
+        f"batch_size={batch_size} from hp.json"
     )
     return train_loader, val_loader
 

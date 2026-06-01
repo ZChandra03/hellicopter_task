@@ -1,0 +1,13 @@
+{
+  "n_input": 1,
+  "n_rnn": 128,
+  "batch_size": 25,
+  "learning_rate": 0.0003,
+  "target_loss": 0.01,
+  "epochs_per_csv": 4,
+  "max_csv": 500,
+  "init_type": "kaiming_uniform",
+  "weight_scale": 10.0,
+  "seed": 1,
+  "trained": false
+}

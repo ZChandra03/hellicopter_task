@@ -1,0 +1,12 @@
+{
+  "n_input": 2,
+  "n_rnn": 128,
+  "batch_size": 25,
+  "learning_rate": 0.0003,
+  "target_loss": 0.001,
+  "max_epochs": 10,
+  "max_csv": 20,
+  "n_null_timesteps": 4,
+  "loss_type": "bce",
+  "train_heads": "haz"
+}
