@@ -12,8 +12,7 @@ import matplotlib.pyplot as plt
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG = BASE_DIR / "accuracy_by_checkpoint_config.json"
-DEFAULT_MODEL_SUBDIR = "bce_both/sigma_1"
+DEFAULT_CONFIG = BASE_DIR / "config.json"
 SEED_RE = re.compile(r"seed_(\d+)$")
 
 
@@ -25,12 +24,12 @@ def parse_args() -> argparse.Namespace:
         "--config",
         type=Path,
         default=DEFAULT_CONFIG,
-        help="Config JSON with model_root. Default: accuracy_by_checkpoint_config.json",
+        help="Config JSON with model_root. Default: config.json",
     )
     parser.add_argument(
         "--model-subdir",
-        default=DEFAULT_MODEL_SUBDIR,
-        help=f"Model run subdirectory under model_root. Default: {DEFAULT_MODEL_SUBDIR}",
+        default=None,
+        help="Optional model run subdirectory under model_root. Default: use model_root directly.",
     )
     parser.add_argument(
         "--output-dir",
@@ -50,6 +49,12 @@ def load_config(path: Path) -> dict[str, Any]:
 
     cfg["model_root"] = Path(cfg["model_root"]).expanduser().resolve()
     return cfg
+
+
+def infer_model_label(model_root: Path) -> str:
+    if model_root.parent.name:
+        return f"{model_root.parent.name}/{model_root.name}"
+    return model_root.name
 
 
 def list_seed_dirs(model_dir: Path) -> list[Path]:
@@ -164,7 +169,8 @@ def plot_metric(
 def main() -> None:
     args = parse_args()
     cfg = load_config(args.config.expanduser().resolve())
-    model_dir = cfg["model_root"] / args.model_subdir
+    model_dir = cfg["model_root"] if args.model_subdir is None else cfg["model_root"] / args.model_subdir
+    model_label = args.model_subdir or infer_model_label(cfg["model_root"])
     output_dir = args.output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -178,14 +184,14 @@ def main() -> None:
         rows,
         metric="loss",
         ylabel="Loss",
-        title=f"{args.model_subdir} loss by epoch",
+        title=f"{model_label} loss by epoch",
         out_path=loss_plot_path,
     )
     plot_metric(
         rows,
         metric="val_loss",
         ylabel="Validation loss",
-        title=f"{args.model_subdir} validation loss by epoch",
+        title=f"{model_label} validation loss by epoch",
         out_path=val_loss_plot_path,
     )
 

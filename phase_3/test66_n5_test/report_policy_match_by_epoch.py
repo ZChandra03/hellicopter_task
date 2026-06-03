@@ -45,9 +45,7 @@ def import_bayesian_observer():
 BayesianObserver = import_bayesian_observer()
 
 
-DEFAULT_CONFIG = BASE_DIR / "accuracy_by_checkpoint_config.json"
-DEFAULT_MODEL_SUBDIR = "bce_both/sigma_1"
-DEFAULT_VARIANT_SUBDIR = "sigma_1"
+DEFAULT_CONFIG = BASE_DIR / "config.json"
 DEFAULT_VARIANT_SPLIT = "test"
 DEFAULT_MAX_VARIANT_CSVS = None
 DEFAULT_MODEL_CLASS = "GRUModel"
@@ -100,10 +98,23 @@ def load_config(path: Path) -> dict[str, Any]:
     return cfg
 
 
+def infer_model_label(model_root: Path) -> str:
+    if model_root.parent.name:
+        return f"{model_root.parent.name}/{model_root.name}"
+    return model_root.name
+
+
+def find_model_code_root(model_dir: Path) -> Path:
+    for path in (model_dir, *model_dir.parents):
+        if (path / "rnn_models.py").exists():
+            return path
+    raise FileNotFoundError(f"Could not find rnn_models.py at or above {model_dir}")
+
+
 def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
     cfg = load_config(DEFAULT_CONFIG)
-    model_subdir = DEFAULT_MODEL_SUBDIR
-    variant_subdir = DEFAULT_VARIANT_SUBDIR or Path(model_subdir).name
+    model_subdir = cfg.get("model_subdir") or infer_model_label(cfg["model_root"])
+    variant_subdir = cfg.get("variant_subdir") or cfg["model_root"].name
     cfg.update(
         {
             "model_subdir": model_subdir,
@@ -123,7 +134,7 @@ def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
             "make_plots": not args.no_plots,
         }
     )
-    cfg["model_dir"] = cfg["model_root"] / cfg["model_subdir"]
+    cfg["model_dir"] = cfg["model_root"]
     cfg["variant_dir"] = cfg["variant_root"] / cfg["variant_subdir"]
     cfg["variant_folder"] = f"{cfg['variant_root'].name}/{Path(cfg['variant_subdir']).as_posix()}"
     return cfg
@@ -145,7 +156,7 @@ def list_eval_csvs(cfg: dict[str, Any]) -> list[Path]:
 
 
 def import_model_class(model_root: Path, class_name: str):
-    module_path = model_root / "rnn_models.py"
+    module_path = find_model_code_root(model_root) / "rnn_models.py"
     if not module_path.exists():
         raise FileNotFoundError(f"Could not find {module_path}")
 

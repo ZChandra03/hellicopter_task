@@ -1,9 +1,0 @@
-{
-  "model_root": "D:/github/hellicopter_task/models/models_n5",
-  "variant_root": "D:/github/hellicopter_task/variants/variants_current",
-
-  "_meta": {
-    "test_folder": "phase_3/test65_PCA_test",
-    "config_file": "phase_3/test65_PCA_test/config.json"
-  }
-}

@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader, Dataset
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG = BASE_DIR / "accuracy_by_checkpoint_config.json"
+DEFAULT_CONFIG = BASE_DIR / "config.json"
 DEFAULT_VARIANT_SPLIT = "test"
 DEFAULT_MAX_VARIANT_CSVS = None
 DEFAULT_MODEL_CLASS = "GRUModel"
@@ -129,6 +129,24 @@ def load_config(path: Path) -> dict[str, Any]:
     return cfg
 
 
+def find_model_code_root(model_dir: Path) -> Path:
+    for path in (model_dir, *model_dir.parents):
+        if (path / "rnn_models.py").exists():
+            return path
+    raise FileNotFoundError(f"Could not find rnn_models.py at or above {model_dir}")
+
+
+def has_seed_dirs(path: Path) -> bool:
+    return path.exists() and any(p.is_dir() and SEED_RE.fullmatch(p.name) for p in path.iterdir())
+
+
+def infer_loss_and_train_heads(model_dir: Path) -> tuple[str, str]:
+    parent_name = model_dir.parent.name
+    if "_" in parent_name:
+        return parent_name.split("_", 1)
+    return "model", parent_name or "run"
+
+
 def expand_all(values: list[str], valid: tuple[str, ...]) -> list[str]:
     if len(values) == 1 and values[0].lower() == "all":
         return list(valid)
@@ -136,7 +154,7 @@ def expand_all(values: list[str], valid: tuple[str, ...]) -> list[str]:
 
 
 def import_model_class(model_root: Path, class_name: str):
-    module_path = model_root / "rnn_models.py"
+    module_path = find_model_code_root(model_root) / "rnn_models.py"
     if not module_path.exists():
         raise FileNotFoundError(f"Could not find {module_path}")
 
@@ -479,7 +497,7 @@ def animate_binned_accuracy(
 
 def process_group(
     model_cls,
-    model_root: Path,
+    group_root: Path,
     variant_root: Path,
     cfg: dict[str, Any],
     loss_type: str,
@@ -489,7 +507,6 @@ def process_group(
     device: torch.device,
 ) -> None:
     key = run_key(loss_type, train_heads)
-    group_root = model_root / key / sigma
     variant_dir = variant_root / sigma
     if not group_root.exists():
         print(f"[skip] missing model directory: {group_root}")
@@ -560,6 +577,23 @@ def main() -> None:
     model_cls = import_model_class(cfg["model_root"], DEFAULT_MODEL_CLASS)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    if has_seed_dirs(cfg["model_root"]):
+        loss_type, train_heads = infer_loss_and_train_heads(cfg["model_root"])
+        sigma = cfg.get("variant_subdir") or cfg["model_root"].name
+        process_group(
+            model_cls,
+            cfg["model_root"],
+            cfg["variant_root"],
+            cfg,
+            loss_type,
+            train_heads,
+            sigma,
+            args,
+            device,
+        )
+        print("All requested binned accuracy outputs complete.")
+        return
+
     loss_types = expand_all(args.loss_types, VALID_LOSS_TYPES)
     train_heads_list = expand_all(args.train_heads, VALID_TRAIN_HEADS)
 
@@ -574,7 +608,7 @@ def main() -> None:
             for sigma in list_sigmas(run_root, args.sigmas):
                 process_group(
                     model_cls,
-                    cfg["model_root"],
+                    cfg["model_root"] / current_run_key / sigma,
                     cfg["variant_root"],
                     cfg,
                     loss_type,
