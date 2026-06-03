@@ -20,8 +20,6 @@ from torch.utils.data import DataLoader, Dataset
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = BASE_DIR / "config.json"
-DEFAULT_MODEL_SUBDIR = "bce_both/sigma_1"
-DEFAULT_VARIANT_SUBDIR = "sigma_1"
 DEFAULT_VARIANT_SPLIT = "test"
 DEFAULT_MAX_VARIANT_CSVS = None
 DEFAULT_MODEL_CLASS = "GRUModel"
@@ -29,8 +27,31 @@ SEED_RE = re.compile(r"seed_(\d+)$")
 CHECKPOINT_NAME = "checkpoint_ep010.pt"
 
 
+def encode_evidence_sequence(
+    evidence: list[float],
+    n_input: int,
+    n_null_timesteps: int,
+) -> torch.Tensor:
+    if not evidence:
+        raise ValueError("Evidence sequence cannot be empty")
+
+    if n_input == 1:
+        return torch.tensor(evidence, dtype=torch.float32).unsqueeze(-1)
+
+    if n_input == 2:
+        steps: list[list[float]] = []
+        null_step = [0.0, 0.0]
+        for i, evidence_t in enumerate(evidence):
+            steps.append([float(evidence_t), 1.0])
+            if i < len(evidence) - 1:
+                steps.extend([null_step.copy() for _ in range(n_null_timesteps)])
+        return torch.tensor(steps, dtype=torch.float32)
+
+    raise ValueError(f"Unsupported n_input={n_input}; expected 1 or 2")
+
+
 class HelicopterPCADataset(Dataset):
-    def __init__(self, csv_paths: list[Path]):
+    def __init__(self, csv_paths: list[Path], n_input: int, n_null_timesteps: int):
         self.x = []
         self.trial_meta = []
 
@@ -42,7 +63,7 @@ class HelicopterPCADataset(Dataset):
                 if not isinstance(evidence, list):
                     evidence = ast.literal_eval(str(evidence))
 
-                self.x.append(torch.tensor(evidence, dtype=torch.float32).unsqueeze(-1))
+                self.x.append(encode_evidence_sequence(evidence, n_input, n_null_timesteps))
                 self.trial_meta.append(
                     {
                         "source_csv": csv_path.name,
@@ -79,7 +100,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--seed",
         type=int,
-        default=1,
+        default=0,
         help="Seed to fit and transform. Default: 1",
     )
     parser.add_argument(
@@ -111,10 +132,23 @@ def load_config(path: Path) -> dict[str, Any]:
     return cfg
 
 
+def infer_model_label(model_root: Path) -> str:
+    if model_root.parent.name:
+        return f"{model_root.parent.name}/{model_root.name}"
+    return model_root.name
+
+
+def find_model_code_root(model_dir: Path) -> Path:
+    for path in (model_dir, *model_dir.parents):
+        if (path / "rnn_models.py").exists():
+            return path
+    raise FileNotFoundError(f"Could not find rnn_models.py at or above {model_dir}")
+
+
 def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
     cfg = load_config(DEFAULT_CONFIG)
-    model_subdir = DEFAULT_MODEL_SUBDIR
-    variant_subdir = DEFAULT_VARIANT_SUBDIR or Path(model_subdir).name
+    model_subdir = cfg.get("model_subdir") or infer_model_label(cfg["model_root"])
+    variant_subdir = cfg.get("variant_subdir") or cfg.get("sigma") or cfg["model_root"].name
     cfg.update(
         {
             "model_subdir": model_subdir,
@@ -129,7 +163,7 @@ def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
             "checkpoint_name": CHECKPOINT_NAME,
         }
     )
-    cfg["model_dir"] = cfg["model_root"] / cfg["model_subdir"]
+    cfg["model_dir"] = cfg["model_root"]
     cfg["variant_dir"] = cfg["variant_root"] / cfg["variant_subdir"]
     return cfg
 
@@ -150,7 +184,7 @@ def list_eval_csvs(cfg: dict[str, Any]) -> list[Path]:
 
 
 def import_model_class(model_root: Path, class_name: str):
-    module_path = model_root / "rnn_models.py"
+    module_path = find_model_code_root(model_root) / "rnn_models.py"
     if not module_path.exists():
         raise FileNotFoundError(f"Could not find {module_path}")
 
@@ -187,6 +221,7 @@ def load_hp(seed_dir: Path) -> dict[str, Any]:
     hp.setdefault("n_rnn", 128)
     hp.setdefault("batch_size", 25)
     hp.setdefault("train_heads", "both")
+    hp.setdefault("n_null_timesteps", 4)
     return hp
 
 
@@ -509,9 +544,14 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cls = import_model_class(cfg["model_root"], cfg["model_class"])
     seed_dir = get_seed_dir(cfg["model_dir"], int(cfg["seed"]), cfg["checkpoint_name"])
-    batch_size = int(load_hp(seed_dir).get("batch_size", 256))
+    hp = load_hp(seed_dir)
+    batch_size = int(hp.get("batch_size", 256))
     csvs = list_eval_csvs(cfg)
-    dataset = HelicopterPCADataset(csvs)
+    dataset = HelicopterPCADataset(
+        csvs,
+        int(hp["n_input"]),
+        int(hp["n_null_timesteps"]),
+    )
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -522,7 +562,10 @@ def main() -> None:
     print(f"Using device: {device}")
     print(f"Loaded {len(dataset)} trials from {len(csvs)} {cfg['variant_split']} CSVs")
     print(f"Using {seed_dir.name}/{cfg['checkpoint_name']}")
-    print(f"Using evaluation batch size from {seed_dir.name}/hp.json: {batch_size}")
+    print(
+        f"Prepared model inputs with n_input={hp['n_input']}, "
+        f"n_null_timesteps={hp['n_null_timesteps']}, batch_size={batch_size}"
+    )
 
     pca = fit_seed_pca(model_cls, seed_dir, dataloader, cfg, device)
     variance_path = cfg["output_dir"] / "pca_ep010_explained_variance.csv"

@@ -25,16 +25,56 @@ from torch.utils.data import DataLoader, Dataset
 
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG = BASE_DIR / "config.json"
-DEFAULT_MODEL_SUBDIR = "bce_both/sigma_1"
-DEFAULT_VARIANT_SUBDIR = "sigma_1"
 DEFAULT_VARIANT_SPLIT = "test"
 DEFAULT_MAX_VARIANT_CSVS = None
 DEFAULT_MODEL_CLASS = "GRUModel"
 CHECKPOINT_NAME = "checkpoint_ep010.pt"
 
 
+def encode_evidence_sequence(
+    evidence: list[float],
+    n_input: int,
+    n_null_timesteps: int,
+) -> torch.Tensor:
+    if not evidence:
+        raise ValueError("Evidence sequence cannot be empty")
+
+    if n_input == 1:
+        return torch.tensor(evidence, dtype=torch.float32).unsqueeze(-1)
+
+    if n_input == 2:
+        steps: list[list[float]] = []
+        null_step = [0.0, 0.0]
+        for i, evidence_t in enumerate(evidence):
+            steps.append([float(evidence_t), 1.0])
+            if i < len(evidence) - 1:
+                steps.extend([null_step.copy() for _ in range(n_null_timesteps)])
+        return torch.tensor(steps, dtype=torch.float32)
+
+    raise ValueError(f"Unsupported n_input={n_input}; expected 1 or 2")
+
+
+def expand_state_sequence(
+    states: list[float],
+    n_input: int,
+    n_null_timesteps: int,
+) -> np.ndarray:
+    if n_input == 1:
+        return np.asarray(states, dtype=np.float32)
+
+    if n_input == 2:
+        expanded: list[float] = []
+        for i, state_t in enumerate(states):
+            expanded.append(float(state_t))
+            if i < len(states) - 1:
+                expanded.extend([float(state_t)] * n_null_timesteps)
+        return np.asarray(expanded, dtype=np.float32)
+
+    raise ValueError(f"Unsupported n_input={n_input}; expected 1 or 2")
+
+
 class HiddenStateDataset(Dataset):
-    def __init__(self, csv_paths: list[Path]):
+    def __init__(self, csv_paths: list[Path], n_input: int, n_null_timesteps: int):
         xs = []
         states = []
         true_hazard = []
@@ -54,8 +94,8 @@ class HiddenStateDataset(Dataset):
                 if not isinstance(state_seq, list):
                     state_seq = ast.literal_eval(str(state_seq))
 
-                xs.append(torch.tensor(evidence, dtype=torch.float32).unsqueeze(-1))
-                states.append(np.asarray(state_seq, dtype=np.float32))
+                xs.append(encode_evidence_sequence(evidence, n_input, n_null_timesteps))
+                states.append(expand_state_sequence(state_seq, n_input, n_null_timesteps))
                 true_hazard.append(float(row["trueHazard"]))
                 true_predict.append(int(row["truePredict"]))
                 true_report.append(int(row["trueReport"]))
@@ -106,10 +146,23 @@ def load_config(path: Path) -> dict[str, Any]:
     return cfg
 
 
+def infer_model_label(model_root: Path) -> str:
+    if model_root.parent.name:
+        return f"{model_root.parent.name}/{model_root.name}"
+    return model_root.name
+
+
+def find_model_code_root(model_dir: Path) -> Path:
+    for path in (model_dir, *model_dir.parents):
+        if (path / "rnn_models.py").exists():
+            return path
+    raise FileNotFoundError(f"Could not find rnn_models.py at or above {model_dir}")
+
+
 def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
     cfg = load_config(DEFAULT_CONFIG)
-    model_subdir = DEFAULT_MODEL_SUBDIR
-    variant_subdir = DEFAULT_VARIANT_SUBDIR or Path(model_subdir).name
+    model_subdir = cfg.get("model_subdir") or infer_model_label(cfg["model_root"])
+    variant_subdir = cfg.get("variant_subdir") or cfg.get("sigma") or cfg["model_root"].name
     cfg.update(
         {
             "model_subdir": model_subdir,
@@ -125,7 +178,7 @@ def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
             "checkpoint_name": CHECKPOINT_NAME,
         }
     )
-    cfg["model_dir"] = cfg["model_root"] / cfg["model_subdir"]
+    cfg["model_dir"] = cfg["model_root"]
     cfg["variant_dir"] = cfg["variant_root"] / cfg["variant_subdir"]
     cfg["seed_dir"] = cfg["model_dir"] / f"seed_{cfg['seed']}"
     cfg["checkpoint_path"] = cfg["seed_dir"] / cfg["checkpoint_name"]
@@ -148,7 +201,7 @@ def list_eval_csvs(cfg: dict[str, Any]) -> list[Path]:
 
 
 def import_model_class(model_root: Path, class_name: str):
-    module_path = model_root / "rnn_models.py"
+    module_path = find_model_code_root(model_root) / "rnn_models.py"
     if not module_path.exists():
         raise FileNotFoundError(f"Could not find {module_path}")
 
@@ -176,6 +229,7 @@ def load_hp(seed_dir: Path) -> dict[str, Any]:
     hp.setdefault("n_rnn", 128)
     hp.setdefault("batch_size", 25)
     hp.setdefault("train_heads", "both")
+    hp.setdefault("n_null_timesteps", 4)
     return hp
 
 
@@ -504,9 +558,14 @@ def main() -> None:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model_cls = import_model_class(cfg["model_root"], cfg["model_class"])
     model = load_model(model_cls, cfg, device)
-    batch_size = int(load_hp(cfg["seed_dir"]).get("batch_size", 256))
+    hp = load_hp(cfg["seed_dir"])
+    batch_size = int(hp.get("batch_size", 256))
     csvs = list_eval_csvs(cfg)
-    dataset = HiddenStateDataset(csvs)
+    dataset = HiddenStateDataset(
+        csvs,
+        int(hp["n_input"]),
+        int(hp["n_null_timesteps"]),
+    )
     dataloader = DataLoader(
         dataset,
         batch_size=batch_size,
@@ -517,7 +576,10 @@ def main() -> None:
     print(f"Using device: {device}")
     print(f"Analyzing {cfg['checkpoint_path']}")
     print(f"Loaded {len(dataset)} trials from {len(csvs)} {cfg['variant_split']} CSVs")
-    print(f"Using evaluation batch size from seed_{cfg['seed']}/hp.json: {batch_size}")
+    print(
+        f"Prepared model inputs with n_input={hp['n_input']}, "
+        f"n_null_timesteps={hp['n_null_timesteps']}, batch_size={batch_size}"
+    )
 
     H = collect_hidden_states(model, dataloader, device)
     unit_df, state_time, haz_time, probe_metrics = build_unit_summary(H, dataset, model, cfg)
