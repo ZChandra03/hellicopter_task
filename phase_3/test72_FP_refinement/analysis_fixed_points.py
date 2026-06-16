@@ -46,14 +46,16 @@ RUN_DEFAULTS = {
     "opt_batch_size": 128,
     "patience": 400,
     "rel_improve_tol": 1e-6,
+    "input_mode": "constant",
+    "cycle_null_steps": 4,
+    "rollout_steps": 0,
+    "lbfgs_steps": 0,
     "max_plot_real_points": 50000,
     "model_class": DEFAULT_MODEL_CLASS,
 }
 
 FIXED_INPUTS = {
-    "null_0_0": [0.0, 0.0],
     "neg_-1_1": [-1.0, 1.0],
-    "zero_0_1": [0.0, 1.0],
     "pos_1_1": [1.0, 1.0],
 }
 
@@ -115,6 +117,33 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=RUN_DEFAULTS["rel_improve_tol"],
         help="Relative improvement threshold for early stopping.",
+    )
+    parser.add_argument(
+        "--input_mode",
+        choices=["constant", "null_then_evidence"],
+        default=RUN_DEFAULTS["input_mode"],
+        help=(
+            "Input map to optimize: constant applies the evidence input once; "
+            "null_then_evidence applies N null steps followed by the evidence input."
+        ),
+    )
+    parser.add_argument(
+        "--cycle_null_steps",
+        type=int,
+        default=RUN_DEFAULTS["cycle_null_steps"],
+        help="Number of [0, 0] steps before evidence in null_then_evidence mode.",
+    )
+    parser.add_argument(
+        "--rollout_steps",
+        type=int,
+        default=RUN_DEFAULTS["rollout_steps"],
+        help="Input-map rollout steps applied to matched initial states before optimization.",
+    )
+    parser.add_argument(
+        "--lbfgs_steps",
+        type=int,
+        default=RUN_DEFAULTS["lbfgs_steps"],
+        help="Optional LBFGS polish iterations after Adam. Use 0 to disable.",
     )
     parser.add_argument(
         "--max_points_per_input",
@@ -411,6 +440,43 @@ def collect_hidden_states(
     return h_real, x_flat, metadata
 
 
+def select_matched_init_indices(
+    metadata: pd.DataFrame,
+    x_values: list[float],
+    n_inits: int,
+    rng: np.random.Generator,
+    match_window: float = 0.5,
+) -> np.ndarray:
+    evidence_value = float(x_values[0])
+    evidence_present = float(x_values[1])
+
+    input_type = metadata["input_type"].fillna("null")
+
+    if evidence_present == 0.0:
+        pool = np.flatnonzero(input_type != "evidence")
+    else:
+        ev = metadata["evidence_value"].to_numpy(dtype=float)
+
+        near = (
+            (input_type.to_numpy() == "evidence")
+            & (np.abs(ev - evidence_value) <= match_window)
+        )
+        pool = np.flatnonzero(near)
+
+        if len(pool) < max(50, n_inits // 10):
+            same_sign = (
+                (input_type.to_numpy() == "evidence")
+                & (np.sign(ev) == np.sign(evidence_value))
+            )
+            pool = np.flatnonzero(same_sign)
+
+    if len(pool) == 0:
+        pool = np.arange(len(metadata))
+
+    replace = len(pool) < n_inits
+    return rng.choice(pool, size=n_inits, replace=replace)
+
+
 def gru_one_step(model, h: torch.Tensor, x_fixed: torch.Tensor) -> torch.Tensor:
     squeeze = h.ndim == 1
     if squeeze:
@@ -425,8 +491,47 @@ def gru_one_step(model, h: torch.Tensor, x_fixed: torch.Tensor) -> torch.Tensor:
     return h_next.squeeze(0) if squeeze else h_next
 
 
-def speed_objective(model, h: torch.Tensor, x_fixed: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-    delta = gru_one_step(model, h, x_fixed) - h
+def build_input_sequence(
+    x_values: list[float],
+    input_mode: str,
+    cycle_null_steps: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    if cycle_null_steps < 0:
+        raise ValueError(f"cycle_null_steps must be nonnegative, got {cycle_null_steps}")
+
+    if input_mode == "constant":
+        values = [x_values]
+    elif input_mode == "null_then_evidence":
+        values = [[0.0, 0.0] for _ in range(cycle_null_steps)]
+        values.append(x_values)
+    else:
+        raise ValueError(f"Unsupported input_mode: {input_mode}")
+
+    return torch.tensor(values, device=device, dtype=dtype)
+
+
+def apply_input_sequence(model, h: torch.Tensor, x_sequence: torch.Tensor) -> torch.Tensor:
+    if x_sequence.ndim == 1:
+        return gru_one_step(model, h, x_sequence)
+
+    h_next = h
+    for x_t in x_sequence:
+        h_next = gru_one_step(model, h_next, x_t)
+    return h_next
+
+
+@torch.no_grad()
+def rollout_input_sequence(model, init_states: torch.Tensor, x_sequence: torch.Tensor, steps: int) -> torch.Tensor:
+    h = init_states
+    for _ in range(steps):
+        h = apply_input_sequence(model, h, x_sequence)
+    return h
+
+
+def speed_objective(model, h: torch.Tensor, x_sequence: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    delta = apply_input_sequence(model, h, x_sequence) - h
     step_norm = torch.linalg.norm(delta, dim=-1)
     q = 0.5 * torch.sum(delta * delta, dim=-1)
     return q, step_norm
@@ -436,12 +541,13 @@ def optimize_slow_points_for_input(
     model,
     init_states: torch.Tensor,
     input_name: str,
-    x_fixed: torch.Tensor,
+    x_sequence: torch.Tensor,
     opt_steps: int,
     lr: float,
     opt_batch_size: int,
     patience: int,
     rel_improve_tol: float,
+    lbfgs_steps: int,
 ) -> list[Candidate]:
     candidates: list[Candidate] = []
     total = init_states.shape[0]
@@ -455,7 +561,7 @@ def optimize_slow_points_for_input(
 
         for _ in range(opt_steps):
             optimizer.zero_grad(set_to_none=True)
-            q, _ = speed_objective(model, h, x_fixed)
+            q, _ = speed_objective(model, h, x_sequence)
             loss = q.mean()
             loss.backward()
             optimizer.step()
@@ -471,8 +577,25 @@ def optimize_slow_points_for_input(
                 if stale_steps >= patience:
                     break
 
+        if lbfgs_steps > 0:
+            optimizer = torch.optim.LBFGS(
+                [h],
+                lr=1.0,
+                max_iter=lbfgs_steps,
+                line_search_fn="strong_wolfe",
+            )
+
+            def closure():
+                optimizer.zero_grad(set_to_none=True)
+                q, _ = speed_objective(model, h, x_sequence)
+                loss = q.mean()
+                loss.backward()
+                return loss
+
+            optimizer.step(closure)
+
         with torch.no_grad():
-            q_final, step_final = speed_objective(model, h, x_fixed)
+            q_final, step_final = speed_objective(model, h, x_sequence)
             h_np = h.detach().cpu().numpy()
             q_np = q_final.detach().cpu().numpy()
             step_np = step_final.detach().cpu().numpy()
@@ -542,11 +665,11 @@ def label_point(model, h_np: np.ndarray, device: torch.device, dtype: torch.dtyp
     }
 
 
-def jacobian_at_point(model, h_np: np.ndarray, x_fixed: torch.Tensor, device: torch.device, dtype: torch.dtype):
+def jacobian_at_point(model, h_np: np.ndarray, x_sequence: torch.Tensor, device: torch.device, dtype: torch.dtype):
     h_star = torch.tensor(h_np, device=device, dtype=dtype).detach().clone().requires_grad_(True)
 
     def f_of_h(h):
-        return gru_one_step(model, h, x_fixed)
+        return apply_input_sequence(model, h, x_sequence)
 
     jac = torch.autograd.functional.jacobian(f_of_h, h_star, vectorize=True)
     return jac.detach()
@@ -589,7 +712,7 @@ def summarize_top_eigs(eigvals: torch.Tensor, n: int = 10) -> dict[str, str]:
 def compute_real_speeds(
     model,
     h_real: np.ndarray,
-    x_fixed: torch.Tensor,
+    x_sequence: torch.Tensor,
     device: torch.device,
     dtype: torch.dtype,
     batch_size: int = 4096,
@@ -598,7 +721,7 @@ def compute_real_speeds(
     for start in range(0, len(h_real), batch_size):
         h = torch.tensor(h_real[start : start + batch_size], device=device, dtype=dtype)
         with torch.no_grad():
-            _, step_norm = speed_objective(model, h, x_fixed)
+            _, step_norm = speed_objective(model, h, x_sequence)
         speeds.append(step_norm.detach().cpu().numpy())
     return np.concatenate(speeds, axis=0)
 
@@ -662,6 +785,10 @@ def sample_real_for_plot(h_real: np.ndarray, max_points: int, seed: int) -> np.n
     return h_real[idx]
 
 
+def is_plottable_point(row: dict[str, Any]) -> bool:
+    return str(row.get("point_type", "")).replace("periodic_", "") in {"fixed", "slow"}
+
+
 def plot_pca_slow_points(
     out_dir: Path,
     h_real: np.ndarray,
@@ -670,19 +797,21 @@ def plot_pca_slow_points(
     max_real_points: int,
     seed: int,
 ) -> None:
-    if len(h_real) < 3 or not h_points:
+    plot_idx = [i for i, row in enumerate(point_rows) if is_plottable_point(row)]
+    if len(h_real) < 3 or not plot_idx:
         return
+
+    plot_rows = [point_rows[i] for i in plot_idx]
+    plot_h_points = [h_points[i] for i in plot_idx]
 
     pca = PCA(n_components=3).fit(h_real)
     real_sample = sample_real_for_plot(h_real, max_real_points, seed)
     real_pc = pca.transform(real_sample)
-    point_arr = np.stack(h_points, axis=0)
+    point_arr = np.stack(plot_h_points, axis=0)
     point_pc = pca.transform(point_arr)
 
     input_colors = {
-        "null_0_0": "#4c78a8",
         "neg_-1_1": "#e45756",
-        "zero_0_1": "#72b7b2",
         "pos_1_1": "#54a24b",
     }
     stability_markers = {
@@ -695,10 +824,10 @@ def plot_pca_slow_points(
     fig, ax = plt.subplots(figsize=(8, 6.5))
     ax.scatter(real_pc[:, 0], real_pc[:, 1], s=3, c="0.75", alpha=0.18, linewidths=0, label="real states")
     for stability, marker in stability_markers.items():
-        idx = [i for i, row in enumerate(point_rows) if row["stability_label"] == stability]
+        idx = [i for i, row in enumerate(plot_rows) if row["stability_label"] == stability]
         if not idx:
             continue
-        colors = [input_colors.get(point_rows[i]["input_name"], "black") for i in idx]
+        colors = [input_colors.get(plot_rows[i]["input_name"], "black") for i in idx]
         ax.scatter(
             point_pc[idx, 0],
             point_pc[idx, 1],
@@ -723,7 +852,7 @@ def plot_pca_slow_points(
         ("hazard_logit", "pca_points_hazard_logit.png", "viridis"),
     ]:
         fig, ax = plt.subplots(figsize=(7.5, 6.2))
-        values = np.array([float(row[field]) for row in point_rows])
+        values = np.array([float(row[field]) for row in plot_rows])
         scatter = ax.scatter(
             point_pc[:, 0],
             point_pc[:, 1],
@@ -746,7 +875,10 @@ def plot_pca_slow_points(
 def plot_eigenspectra(out_dir: Path, point_rows: list[dict[str, Any]], eigvals_np: list[np.ndarray]) -> None:
     theta = np.linspace(0.0, 2.0 * np.pi, 400)
     for input_name in FIXED_INPUTS:
-        idx = [i for i, row in enumerate(point_rows) if row["input_name"] == input_name]
+        idx = [
+            i for i, row in enumerate(point_rows)
+            if row["input_name"] == input_name and is_plottable_point(row)
+        ]
         if not idx:
             continue
         fig, ax = plt.subplots(figsize=(6.2, 6.2))
@@ -832,43 +964,61 @@ def main() -> None:
     metadata.to_csv(out_dir / "real_state_metadata.csv", index=False)
 
     rng = np.random.default_rng(args.seed)
-    if len(h_real) > args.n_inits:
-        init_idx = rng.choice(len(h_real), size=args.n_inits, replace=False)
-        init_np = h_real[init_idx]
-    else:
-        init_idx = np.arange(len(h_real))
-        init_np = h_real
-    init_states = torch.tensor(init_np, device=device, dtype=dtype)
-    if args.noise_scale > 0.0:
-        init_states = init_states + args.noise_scale * torch.randn_like(init_states)
 
     print(f"Using device: {device}")
     print(f"Loaded model: {checkpoint_path}")
     print(f"Loaded {len(val_df)} validation trials from {len(val_paths)} CSVs.")
-    print(f"Collected {len(h_real)} hidden states; optimizing {len(init_states)} initial states per input.")
+    print(f"Collected {len(h_real)} hidden states; optimizing {args.n_inits} matched initial states per input.")
+    print(f"Input mode: {args.input_mode}")
 
     rows: list[dict[str, Any]] = []
     h_points: list[np.ndarray] = []
     eigvals_np: list[np.ndarray] = []
     raw_candidates_by_input: dict[str, list[Candidate]] = {}
     real_speeds_by_input: dict[str, np.ndarray] = {}
+    init_indices_by_input: dict[str, list[int]] = {}
+    input_sequences_by_input: dict[str, list[list[float]]] = {}
 
     for input_name, x_values in FIXED_INPUTS.items():
         print(f"Optimizing candidates for {input_name}...")
-        x_fixed = torch.tensor(x_values, device=device, dtype=dtype)
-        real_speeds = compute_real_speeds(model, h_real, x_fixed, device, dtype)
+        x_sequence = build_input_sequence(
+            x_values=x_values,
+            input_mode=args.input_mode,
+            cycle_null_steps=args.cycle_null_steps,
+            device=device,
+            dtype=dtype,
+        )
+        input_sequence = x_sequence.detach().cpu().tolist()
+        input_sequences_by_input[input_name] = input_sequence
+
+        init_idx = select_matched_init_indices(
+            metadata=metadata,
+            x_values=x_values,
+            n_inits=args.n_inits,
+            rng=rng,
+            match_window=0.5,
+        )
+        init_indices_by_input[input_name] = init_idx.astype(int).tolist()
+        init_states = torch.tensor(h_real[init_idx], device=device, dtype=dtype)
+        if args.noise_scale > 0.0:
+            init_states = init_states + args.noise_scale * torch.randn_like(init_states)
+        if args.rollout_steps > 0:
+            init_states = rollout_input_sequence(model, init_states, x_sequence, args.rollout_steps)
+
+        real_speeds = compute_real_speeds(model, h_real, x_sequence, device, dtype)
         real_speeds_by_input[input_name] = real_speeds
 
         raw_candidates = optimize_slow_points_for_input(
             model,
             init_states,
             input_name,
-            x_fixed,
+            x_sequence,
             args.opt_steps,
             args.lr,
             args.opt_batch_size,
             args.patience,
             args.rel_improve_tol,
+            args.lbfgs_steps,
         )
         raw_candidates_by_input[input_name] = raw_candidates
         kept = deduplicate_points(raw_candidates, args.cluster_eps)
@@ -878,18 +1028,24 @@ def main() -> None:
 
         for point_id, candidate in enumerate(kept):
             labels = label_point(model, candidate.h, device, dtype)
-            jac = jacobian_at_point(model, candidate.h, x_fixed, device, dtype)
+            jac = jacobian_at_point(model, candidate.h, x_sequence, device, dtype)
             eigvals = torch.linalg.eigvals(jac)
             stability_label, stability_metrics = classify_stability(eigvals, args.eig_tol)
             eig_summary = summarize_top_eigs(eigvals)
             eig_np = eigvals.detach().cpu().numpy()
+            point_type = classify_point(candidate.step_norm, args.fixed_tol, args.slow_tol)
+            if args.input_mode != "constant":
+                point_type = f"periodic_{point_type}"
 
             row = {
                 "input_name": input_name,
+                "input_mode": args.input_mode,
+                "input_sequence": json.dumps(input_sequence),
+                "input_sequence_steps": len(input_sequence),
                 "point_id": point_id,
                 "q": candidate.q,
                 "step_norm": candidate.step_norm,
-                "point_type": classify_point(candidate.step_norm, args.fixed_tol, args.slow_tol),
+                "point_type": point_type,
                 "cluster_count": candidate.cluster_count,
                 **labels,
                 **stability_metrics,
@@ -917,7 +1073,8 @@ def main() -> None:
             "validation_csvs": [str(path) for path in val_paths],
             "hp": hp,
             "n_hidden_states": int(len(h_real)),
-            "init_indices": init_idx.astype(int).tolist(),
+            "init_indices_by_input": init_indices_by_input,
+            "input_sequences_by_input": input_sequences_by_input,
             "x_flat_shape": list(x_flat.shape),
         },
     )

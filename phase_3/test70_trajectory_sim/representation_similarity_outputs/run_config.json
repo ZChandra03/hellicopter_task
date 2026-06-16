@@ -1,0 +1,36 @@
+{
+  "args": {
+    "config": "D:\\github\\hellicopter_task\\phase_3\\test70_trajectory_sim\\config.json",
+    "output_dir": "D:\\github\\hellicopter_task\\phase_3\\test70_trajectory_sim\\representation_similarity_outputs",
+    "checkpoint_name": "checkpoint_ep010.pt",
+    "seeds": "all",
+    "variant_split": "test",
+    "max_variant_csvs": null,
+    "condition_cols": "true_report,true_predict",
+    "pca_components": "2,3,5,10",
+    "max_state_rows": 50000,
+    "rdm_metric": "correlation",
+    "rsa_correlation": "spearman",
+    "svcca_var_threshold": 0.99,
+    "no_svcca": false,
+    "model_class": "GRUModel",
+    "seed": 0
+  },
+  "resolved_config": {
+    "model_root": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
+    "variant_root": "D:\\github\\hellicopter_task\\variants\\variants_current",
+    "_meta": {
+      "test_folder": "phase_3/test70_trajectory_sim",
+      "config_file": "phase_3/test70_trajectory_sim/config.json"
+    },
+    "model_subdir": "bce_both/sigma_1",
+    "variant_subdir": "sigma_1",
+    "variant_split": "test",
+    "max_variant_csvs": null,
+    "model_class": "GRUModel",
+    "checkpoint_name": "checkpoint_ep010.pt",
+    "output_dir": "D:\\github\\hellicopter_task\\phase_3\\test70_trajectory_sim\\representation_similarity_outputs",
+    "model_dir": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
+    "variant_dir": "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1"
+  }
+}
