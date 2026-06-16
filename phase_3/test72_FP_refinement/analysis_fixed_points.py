@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 import torch
@@ -836,13 +837,44 @@ def plot_pca_slow_points(
             marker=marker,
             edgecolors="black",
             linewidths=0.6,
-            label=stability,
         )
     ax.set_xlabel("PC1")
     ax.set_ylabel("PC2")
     ax.set_title("PCA real trajectories plus fixed/slow points")
     ax.grid(True, alpha=0.25)
-    ax.legend(frameon=False, fontsize=8)
+    shape_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker=marker,
+            color="none",
+            markerfacecolor="0.65",
+            markeredgecolor="black",
+            markersize=8,
+            linestyle="none",
+            label=stability,
+        )
+        for stability, marker in stability_markers.items()
+        if any(row["stability_label"] == stability for row in plot_rows)
+    ]
+    color_handles = [
+        Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="none",
+            markerfacecolor=color,
+            markeredgecolor="black",
+            markersize=8,
+            linestyle="none",
+            label=input_name,
+        )
+        for input_name, color in input_colors.items()
+        if any(row["input_name"] == input_name for row in plot_rows)
+    ]
+    shape_legend = ax.legend(handles=shape_handles, title="stability", frameon=False, fontsize=8, loc="best")
+    ax.add_artist(shape_legend)
+    ax.legend(handles=color_handles, title="input", frameon=False, fontsize=8, loc="lower right")
     fig.tight_layout()
     fig.savefig(out_dir / "pca_slow_points_by_input.png", dpi=250, bbox_inches="tight")
     plt.close(fig)
@@ -853,6 +885,7 @@ def plot_pca_slow_points(
     ]:
         fig, ax = plt.subplots(figsize=(7.5, 6.2))
         values = np.array([float(row[field]) for row in plot_rows])
+        ax.scatter(real_pc[:, 0], real_pc[:, 1], s=3, c="0.75", alpha=0.18, linewidths=0)
         scatter = ax.scatter(
             point_pc[:, 0],
             point_pc[:, 1],
