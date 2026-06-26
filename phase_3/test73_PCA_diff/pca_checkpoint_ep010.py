@@ -100,7 +100,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--seed",
         type=int,
-        default=1,
+        default=0,
         help="Seed to fit and transform. Default: 1",
     )
     parser.add_argument(
@@ -114,12 +114,6 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=BASE_DIR / "pca_outputs",
         help="Directory for PCA CSVs and plots. Default: ./pca_outputs",
-    )
-    parser.add_argument(
-        "--timestep-mode",
-        choices=["all", "final"],
-        default="final",
-        help="Which hidden-state timesteps to save and plot. Default: all",
     )
     return parser.parse_args()
 
@@ -167,7 +161,6 @@ def build_run_config(args: argparse.Namespace) -> dict[str, Any]:
             "max_plot_points": args.max_plot_points,
             "output_dir": args.output_dir.expanduser().resolve(),
             "checkpoint_name": CHECKPOINT_NAME,
-            "timestep_mode": args.timestep_mode,
         }
     )
     cfg["model_dir"] = cfg["model_root"]
@@ -327,7 +320,6 @@ def write_transformed_csv(
             transformed = pca.transform(hidden.reshape(-1, hidden.shape[-1]))
             n_batch, n_time, _ = hidden.shape
             transformed = transformed.reshape(n_batch, n_time, -1)
-            timesteps = [n_time - 1] if cfg["timestep_mode"] == "final" else range(n_time)
 
             for batch_pos, trial_idx in enumerate(trial_indices):
                 meta = dataset.trial_meta[int(trial_idx)]
@@ -339,7 +331,7 @@ def write_transformed_csv(
                 predict_correct = int(batch_predict_pred == true_predict01)
                 combined_correct = int(report_correct == 1 and predict_correct == 1)
 
-                for timestep in timesteps:
+                for timestep in range(n_time):
                     row = {
                         "model": seed_dir.name,
                         "seed": seed,
@@ -413,12 +405,6 @@ def plot_explained_variance(pca: IncrementalPCA, out_path: Path) -> None:
     plt.close(fig)
 
 
-def output_stem(cfg: dict[str, Any], base: str) -> str:
-    if cfg["timestep_mode"] == "final":
-        return f"{base}_final_timestep"
-    return base
-
-
 def scatter_pc1_pc2(
     df: pd.DataFrame,
     color_col: str,
@@ -475,37 +461,36 @@ def save_plots(plot_df: pd.DataFrame, cfg: dict[str, Any]) -> None:
         print("No sampled rows available for plotting.")
         return
 
-    stem = output_stem(cfg, "pca_ep010")
     scatter_pc1_pc2(
         plot_df,
         color_col="true_hazard",
         title=f"{cfg['model_subdir']} {cfg['checkpoint_name']} PCA by true_hazard",
-        out_path=cfg["output_dir"] / f"{stem}_pc1_pc2_by_true_hazard.png",
+        out_path=cfg["output_dir"] / "pca_ep010_pc1_pc2_by_true_hazard.png",
     )
     scatter_pc1_pc2(
         plot_df,
         color_col="timestep",
         title=f"{cfg['model_subdir']} {cfg['checkpoint_name']} PCA by timestep",
-        out_path=cfg["output_dir"] / f"{stem}_pc1_pc2_by_timestep.png",
+        out_path=cfg["output_dir"] / "pca_ep010_pc1_pc2_by_timestep.png",
         cmap="plasma",
     )
     scatter_pc1_pc2(
         plot_df,
         color_col="true_report",
         title=f"{cfg['model_subdir']} {cfg['checkpoint_name']} PCA by true_report",
-        out_path=cfg["output_dir"] / f"{stem}_pc1_pc2_by_true_report.png",
+        out_path=cfg["output_dir"] / "pca_ep010_pc1_pc2_by_true_report.png",
         cmap="coolwarm",
     )
     scatter_pc1_pc2(
         plot_df,
         color_col="true_predict",
         title=f"{cfg['model_subdir']} {cfg['checkpoint_name']} PCA by true_predict",
-        out_path=cfg["output_dir"] / f"{stem}_pc1_pc2_by_true_predict.png",
+        out_path=cfg["output_dir"] / "pca_ep010_pc1_pc2_by_true_predict.png",
         cmap="coolwarm",
     )
     plot_mean_trajectory(
         plot_df,
-        out_path=cfg["output_dir"] / f"{stem}_mean_trajectory_by_true_predict.png",
+        out_path=cfg["output_dir"] / "pca_ep010_mean_trajectory_by_true_predict.png",
     )
 
     correct_df = plot_df[plot_df["combined_correct"] == 1].copy()
@@ -517,32 +502,32 @@ def save_plots(plot_df: pd.DataFrame, cfg: dict[str, Any]) -> None:
         correct_df,
         color_col="true_hazard",
         title=f"{cfg['model_subdir']} {cfg['checkpoint_name']} PCA by true_hazard, correct only",
-        out_path=cfg["output_dir"] / f"{stem}_correct_only_pc1_pc2_by_true_hazard.png",
+        out_path=cfg["output_dir"] / "pca_ep010_correct_only_pc1_pc2_by_true_hazard.png",
     )
     scatter_pc1_pc2(
         correct_df,
         color_col="timestep",
         title=f"{cfg['model_subdir']} {cfg['checkpoint_name']} PCA by timestep, correct only",
-        out_path=cfg["output_dir"] / f"{stem}_correct_only_pc1_pc2_by_timestep.png",
+        out_path=cfg["output_dir"] / "pca_ep010_correct_only_pc1_pc2_by_timestep.png",
         cmap="plasma",
     )
     scatter_pc1_pc2(
         correct_df,
         color_col="true_report",
         title=f"{cfg['model_subdir']} {cfg['checkpoint_name']} PCA by true_report, correct only",
-        out_path=cfg["output_dir"] / f"{stem}_correct_only_pc1_pc2_by_true_report.png",
+        out_path=cfg["output_dir"] / "pca_ep010_correct_only_pc1_pc2_by_true_report.png",
         cmap="coolwarm",
     )
     scatter_pc1_pc2(
         correct_df,
         color_col="true_predict",
         title=f"{cfg['model_subdir']} {cfg['checkpoint_name']} PCA by true_predict, correct only",
-        out_path=cfg["output_dir"] / f"{stem}_correct_only_pc1_pc2_by_true_predict.png",
+        out_path=cfg["output_dir"] / "pca_ep010_correct_only_pc1_pc2_by_true_predict.png",
         cmap="coolwarm",
     )
     plot_mean_trajectory(
         correct_df,
-        out_path=cfg["output_dir"] / f"{stem}_correct_only_mean_trajectory_by_true_predict.png",
+        out_path=cfg["output_dir"] / "pca_ep010_correct_only_mean_trajectory_by_true_predict.png",
     )
 
 
@@ -581,7 +566,6 @@ def main() -> None:
         f"Prepared model inputs with n_input={hp['n_input']}, "
         f"n_null_timesteps={hp['n_null_timesteps']}, batch_size={batch_size}"
     )
-    print(f"Saving timestep mode: {cfg['timestep_mode']}")
 
     pca = fit_seed_pca(model_cls, seed_dir, dataloader, cfg, device)
     variance_path = cfg["output_dir"] / "pca_ep010_explained_variance.csv"
@@ -589,8 +573,7 @@ def main() -> None:
     variance_plot_path = cfg["output_dir"] / "pca_ep010_explained_variance.png"
     plot_explained_variance(pca, variance_plot_path)
 
-    stem = output_stem(cfg, "pca_ep010")
-    transformed_path = cfg["output_dir"] / f"{stem}_hidden_states.csv"
+    transformed_path = cfg["output_dir"] / "pca_ep010_hidden_states.csv"
     plot_df = write_transformed_csv(
         model_cls,
         pca,
@@ -601,7 +584,7 @@ def main() -> None:
         device,
         transformed_path,
     )
-    plot_sample_path = cfg["output_dir"] / f"{stem}_plot_sample.csv"
+    plot_sample_path = cfg["output_dir"] / "pca_ep010_plot_sample.csv"
     plot_df.to_csv(plot_sample_path, index=False)
     save_plots(plot_df, cfg)
 

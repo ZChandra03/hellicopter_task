@@ -3,7 +3,7 @@
   "variant_root": "D:/github/hellicopter_task/variants/variants_current",
 
   "_meta": {
-    "test_folder": "phase_3/test66_n5_test",
-    "config_file": "phase_3/test66_n5_test/config.json"
+    "test_folder": "phase_3/test73_PCA_diff",
+    "config_file": "phase_3/test73_PCA_diff/config.json"
   }
 }

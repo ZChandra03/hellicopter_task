@@ -32,15 +32,15 @@
     "model_class": "GRUModel"
   },
   "config_json": {
-    "model_root": "D:\\github\\hellicopter_task\\models\\models_n5_hueristic\\bce_both\\sigma_1",
+    "model_root": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
     "variant_root": "D:\\github\\hellicopter_task\\variants\\variants_current",
     "_meta": {
       "test_folder": "phase_3/test72_FP_refinement",
       "config_file": "phase_3/test72_FP_refinement/config.json"
     }
   },
-  "model_dir": "D:\\github\\hellicopter_task\\models\\models_n5_hueristic\\bce_both\\sigma_1\\seed_0",
-  "checkpoint_path": "D:\\github\\hellicopter_task\\models\\models_n5_hueristic\\bce_both\\sigma_1\\seed_0\\final.pt",
+  "model_dir": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1\\seed_0",
+  "checkpoint_path": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1\\seed_0\\final.pt",
   "group_key": "sigma_1",
   "variant_root": "D:\\github\\hellicopter_task\\variants\\variants_current",
   "validation_csvs": [
@@ -59,7 +59,6 @@
     "max_epochs": 10,
     "max_csv": 20,
     "n_null_timesteps": 4,
-    "report_target": "sign_last_evidence",
     "loss_type": "bce",
     "train_heads": "both"
   },

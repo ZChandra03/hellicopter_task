@@ -47,7 +47,7 @@ RUN_DEFAULTS = {
     "opt_batch_size": 128,
     "patience": 400,
     "rel_improve_tol": 1e-6,
-    "input_mode": "constant",
+    "input_mode": "null_then_evidence",
     "cycle_null_steps": 4,
     "rollout_steps": 0,
     "lbfgs_steps": 0,
@@ -562,9 +562,13 @@ def optimize_slow_points_for_input(
 
         for _ in range(opt_steps):
             optimizer.zero_grad(set_to_none=True)
-            q, _ = speed_objective(model, h, x_sequence)
-            loss = q.mean()
-            loss.backward()
+            # cuDNN RNN kernels refuse backward in eval mode. Keep eval-mode
+            # dynamics, but route these differentiable recurrent-map calls
+            # through the non-cuDNN implementation.
+            with torch.backends.cudnn.flags(enabled=False):
+                q, _ = speed_objective(model, h, x_sequence)
+                loss = q.mean()
+                loss.backward()
             optimizer.step()
 
             if patience > 0:
@@ -588,9 +592,10 @@ def optimize_slow_points_for_input(
 
             def closure():
                 optimizer.zero_grad(set_to_none=True)
-                q, _ = speed_objective(model, h, x_sequence)
-                loss = q.mean()
-                loss.backward()
+                with torch.backends.cudnn.flags(enabled=False):
+                    q, _ = speed_objective(model, h, x_sequence)
+                    loss = q.mean()
+                    loss.backward()
                 return loss
 
             optimizer.step(closure)
@@ -672,7 +677,8 @@ def jacobian_at_point(model, h_np: np.ndarray, x_sequence: torch.Tensor, device:
     def f_of_h(h):
         return apply_input_sequence(model, h, x_sequence)
 
-    jac = torch.autograd.functional.jacobian(f_of_h, h_star, vectorize=True)
+    with torch.backends.cudnn.flags(enabled=False):
+        jac = torch.autograd.functional.jacobian(f_of_h, h_star, vectorize=True)
     return jac.detach()
 
 

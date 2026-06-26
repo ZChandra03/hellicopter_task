@@ -118,7 +118,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--timestep-mode",
         choices=["all", "final"],
-        default="final",
+        default="all",
         help="Which hidden-state timesteps to save and plot. Default: all",
     )
     return parser.parse_args()
