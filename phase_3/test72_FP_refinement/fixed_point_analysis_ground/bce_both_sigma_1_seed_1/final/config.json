@@ -32,23 +32,23 @@
     "model_class": "GRUModel"
   },
   "config_json": {
-    "model_root": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
-    "variant_root": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current",
+    "model_root": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
+    "variant_root": "D:\\github\\hellicopter_task\\variants\\variants_current",
     "_meta": {
       "test_folder": "phase_3/test72_FP_refinement",
       "config_file": "phase_3/test72_FP_refinement/config.json"
     }
   },
-  "model_dir": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1\\seed_1",
-  "checkpoint_path": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1\\seed_1\\final.pt",
+  "model_dir": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1\\seed_1",
+  "checkpoint_path": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1\\seed_1\\final.pt",
   "group_key": "sigma_1",
-  "variant_root": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current",
+  "variant_root": "D:\\github\\hellicopter_task\\variants\\variants_current",
   "validation_csvs": [
-    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_0.csv",
-    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_1.csv",
-    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_2.csv",
-    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_3.csv",
-    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_4.csv"
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_0.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_1.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_2.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_3.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_4.csv"
   ],
   "hp": {
     "n_input": 2,

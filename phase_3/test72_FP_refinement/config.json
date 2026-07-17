@@ -1,6 +1,6 @@
 {
-  "model_root": "C:/Users/Little Billy/OneDrive - UCB-O365/hellicopter_task/models/models_n5_hueristic/bce_both/sigma_1",
-  "variant_root": "C:/Users/Little Billy/OneDrive - UCB-O365/hellicopter_task/variants/variants_current",
+  "model_root": "D:/github/hellicopter_task/models/models_n5_hueristic/bce_both/sigma_1",
+  "variant_root": "D:/github/hellicopter_task/variants/variants_current",
 
   "_meta": {
     "test_folder": "phase_3/test72_FP_refinement",
