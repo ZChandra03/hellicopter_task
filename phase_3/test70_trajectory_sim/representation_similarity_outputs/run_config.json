@@ -1,7 +1,7 @@
 {
   "args": {
-    "config": "D:\\github\\hellicopter_task\\phase_3\\test70_trajectory_sim\\config.json",
-    "output_dir": "D:\\github\\hellicopter_task\\phase_3\\test70_trajectory_sim\\representation_similarity_outputs",
+    "config": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\phase_3\\test70_trajectory_sim\\config.json",
+    "output_dir": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\phase_3\\test70_trajectory_sim\\representation_similarity_outputs",
     "checkpoint_name": "checkpoint_ep010.pt",
     "seeds": "all",
     "variant_split": "test",
@@ -17,8 +17,8 @@
     "seed": 0
   },
   "resolved_config": {
-    "model_root": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
-    "variant_root": "D:\\github\\hellicopter_task\\variants\\variants_current",
+    "model_root": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
+    "variant_root": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current",
     "_meta": {
       "test_folder": "phase_3/test70_trajectory_sim",
       "config_file": "phase_3/test70_trajectory_sim/config.json"
@@ -29,8 +29,8 @@
     "max_variant_csvs": null,
     "model_class": "GRUModel",
     "checkpoint_name": "checkpoint_ep010.pt",
-    "output_dir": "D:\\github\\hellicopter_task\\phase_3\\test70_trajectory_sim\\representation_similarity_outputs",
-    "model_dir": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
-    "variant_dir": "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1"
+    "output_dir": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\phase_3\\test70_trajectory_sim\\representation_similarity_outputs",
+    "model_dir": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
+    "variant_dir": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1"
   }
 }

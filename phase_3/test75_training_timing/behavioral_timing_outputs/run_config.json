@@ -1,41 +1,41 @@
 {
-  "config": "D:\\github\\hellicopter_task\\phase_3\\test75_training_timing\\config.json",
-  "output_dir": "D:\\github\\hellicopter_task\\phase_3\\test75_training_timing\\behavioral_timing_outputs",
-  "variant_dir": "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1",
+  "config": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\phase_3\\test75_training_timing\\config.json",
+  "output_dir": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\phase_3\\test75_training_timing\\behavioral_timing_outputs",
+  "variant_dir": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1",
   "variant_split": "test",
   "variant_csvs": [
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_0.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_1.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_2.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_3.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_4.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_5.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_6.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_7.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_8.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_9.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_10.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_11.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_12.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_13.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_14.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_15.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_16.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_17.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_18.csv",
-    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_19.csv"
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_0.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_1.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_2.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_3.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_4.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_5.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_6.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_7.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_8.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_9.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_10.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_11.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_12.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_13.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_14.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_15.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_16.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_17.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_18.csv",
+    "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1\\testConfig_19.csv"
   ],
   "n_trials": 6000,
   "model_specs": [
     {
       "role": "true_report_training",
       "label": "models_n5_bce_both_sigma_1",
-      "root": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1"
+      "root": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1"
     },
     {
       "role": "last_evidence_training",
       "label": "models_n5_hueristic_bce_both_sigma_1",
-      "root": "D:\\github\\hellicopter_task\\models\\models_n5_hueristic\\bce_both\\sigma_1"
+      "root": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\models\\models_n5_hueristic\\bce_both\\sigma_1"
     }
   ],
   "seeds": "all",

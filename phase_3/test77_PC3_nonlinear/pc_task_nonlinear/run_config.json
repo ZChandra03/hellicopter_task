@@ -1,7 +1,7 @@
 {
-  "input": "D:\\github\\hellicopter_task\\phase_3\\test77_PC3_nonlinear\\pca_outputs\\pca_ep010_hidden_states.csv",
-  "variant_dir": "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1",
-  "normative_model": "D:\\github\\hellicopter_task\\utils\\NormativeModel.py",
+  "input": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\phase_3\\test77_PC3_nonlinear\\pca_outputs\\pca_ep010_hidden_states.csv",
+  "variant_dir": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\variants\\variants_current\\sigma_1",
+  "normative_model": "C:\\Users\\Little Billy\\OneDrive - UCB-O365\\hellicopter_task\\utils\\NormativeModel.py",
   "pc_columns": [
     "pc1",
     "pc2",
