@@ -1,0 +1,210 @@
+{
+  "analysis_mode": "hazard_continuous",
+  "checkpoint_name": "checkpoint_ep010.pt",
+  "model_subdir": "bce_both/sigma_1",
+  "variant_subdir": "sigma_1",
+  "seed": 1,
+  "n_components": 3,
+  "factor_names": [
+    "hazard_bin",
+    "true_report",
+    "timestep"
+  ],
+  "marginals": [
+    "time",
+    "hazard",
+    "hazard_time",
+    "report",
+    "report_time",
+    "hazard_report",
+    "hazard_report_time",
+    "task_interaction"
+  ],
+  "marginal_groups": {
+    "time": [
+      [
+        "timestep"
+      ]
+    ],
+    "hazard": [
+      [
+        "hazard_bin"
+      ]
+    ],
+    "hazard_time": [
+      [
+        "hazard_bin",
+        "timestep"
+      ]
+    ],
+    "report": [
+      [
+        "true_report"
+      ]
+    ],
+    "report_time": [
+      [
+        "true_report",
+        "timestep"
+      ]
+    ],
+    "hazard_report": [
+      [
+        "hazard_bin",
+        "true_report"
+      ]
+    ],
+    "hazard_report_time": [
+      [
+        "hazard_bin",
+        "true_report",
+        "timestep"
+      ]
+    ],
+    "task_interaction": [
+      [
+        "hazard_bin",
+        "true_report"
+      ],
+      [
+        "hazard_bin",
+        "true_report",
+        "timestep"
+      ]
+    ]
+  },
+  "dropped_from_demixing": [
+    "true_predict"
+  ],
+  "note": "true_predict is a binary thresholded/readout version of continuous trueHazard. It is retained as metadata/readout only, not as an independent dPCA factor.",
+  "factor_levels": {
+    "hazard_bin": [
+      0,
+      1,
+      2
+    ],
+    "true_report": [
+      -1,
+      1
+    ],
+    "timestep": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95
+    ]
+  },
+  "hazard_bin_edges": [
+    2.0531437800452856e-05,
+    0.337928071004863,
+    0.6712192712661721,
+    0.9999858017256734
+  ],
+  "hazard_bin_labels": {
+    "0": "low [0.000, 0.338]",
+    "1": "mid [0.338, 0.671]",
+    "2": "high [0.671, 1.000]"
+  },
+  "total_condition_variance": 1230.51937946454,
+  "condition_shape": [
+    3,
+    2,
+    96
+  ],
+  "condition_cells": 576,
+  "empty_condition_cells": 0,
+  "empty_condition_cell_percent": 0.0,
+  "timestep_mode": "all"
+}

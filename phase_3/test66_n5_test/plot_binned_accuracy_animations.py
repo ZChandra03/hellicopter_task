@@ -13,7 +13,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from matplotlib import animation
+from matplotlib import animation, colors
 from torch.utils.data import DataLoader, Dataset
 
 
@@ -97,7 +97,10 @@ def collate_batch(batch):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Create report/hazard binned-accuracy animations plus a hazard skew plot."
+        description=(
+            "Create report/hazard binned-accuracy animations, per-seed epoch trace "
+            "plots, plus a hazard skew plot."
+        )
     )
     parser.add_argument("--loss-types", nargs="+", default=["bce"], help="bce or all")
     parser.add_argument("--train-heads", nargs="+", default=["both"], help="rep, haz, both, or all")
@@ -112,6 +115,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dpi", type=int, default=200)
     parser.add_argument("--skew-split", type=float, default=0.5)
     parser.add_argument("--no-skew-plot", action="store_true")
+    parser.add_argument(
+        "--no-seed-epoch-plots",
+        action="store_true",
+        help="Skip per-seed plots that overlay binned accuracy curves across epochs.",
+    )
     return parser.parse_args()
 
 
@@ -427,6 +435,61 @@ def plot_hazard_skew(
     print(f"Saved {out_path}")
 
 
+def plot_seed_binned_accuracy_by_epoch(
+    checkpoint_labels: list[str],
+    acc_by_checkpoint: dict[str, list[tuple[int, np.ndarray]]],
+    seed: int,
+    head: str,
+    title_prefix: str,
+    out_path: Path,
+    dpi: int,
+) -> None:
+    seed_curves = []
+    for label in checkpoint_labels:
+        seed_acc_map = {seed_id: acc for seed_id, acc in acc_by_checkpoint.get(label, [])}
+        if seed in seed_acc_map:
+            seed_curves.append((label, seed_acc_map[seed]))
+
+    if not seed_curves:
+        print(f"[skip] no {head} binned-accuracy curves found for seed {seed}")
+        return
+
+    fig_height = max(5.6, 1.5 + 0.23 * len(seed_curves))
+    fig, ax = plt.subplots(figsize=(9.5, fig_height))
+    cmap = plt.get_cmap('RdBu', len(seed_curves))
+    boundaries = np.arange(-0.5, len(seed_curves) + 0.5, 1.0)
+    norm = colors.BoundaryNorm(boundaries, cmap.N)
+
+    for i, (_, acc) in enumerate(seed_curves):
+        ax.plot(
+            BIN_CENTERS,
+            acc,
+            color=cmap(i),
+            alpha=0.35 if len(seed_curves) > 30 else 0.72,
+            linewidth=1.1 if len(seed_curves) > 30 else 1.45,
+        )
+
+    sm = plt.cm.ScalarMappable(norm=norm, cmap=cmap)
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, pad=0.02, ticks=np.arange(len(seed_curves)))
+    cbar.set_ticklabels([label for label, _ in seed_curves])
+    cbar.set_label("Checkpoint")
+    cbar.ax.tick_params(labelsize=7 if len(seed_curves) > 30 else 8)
+
+    head_label = "Report" if head == "report" else "Hazard"
+    ax.set_xlabel("True hazard (bin centers, width = 0.05)")
+    ax.set_ylabel(f"{head_label} accuracy")
+    ax.set_xlim(0.0, 1.0)
+    ax.set_ylim(0.0, 1.0)
+    ax.set_xticks(np.arange(0.0, 1.01, 0.1))
+    ax.grid(True, alpha=0.3)
+    ax.set_title(f"{title_prefix} | seed {seed} | {head} head by epoch")
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=dpi, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved {out_path}")
+
+
 def animate_binned_accuracy(
     checkpoint_labels: list[str],
     acc_by_checkpoint: dict[str, list[tuple[int, np.ndarray]]],
@@ -530,10 +593,24 @@ def process_group(
 
     out_dir = args.output_dir.expanduser().resolve() / key / sigma
     out_dir.mkdir(parents=True, exist_ok=True)
+    seed_epoch_dir = out_dir / "per_seed_epoch_traces"
+    if not args.no_seed_epoch_plots:
+        seed_epoch_dir.mkdir(parents=True, exist_ok=True)
     seed_color = make_seed_palette(seed_ids)
     title_prefix = f"{key} | {sigma}"
 
     if "report" in args.heads:
+        if not args.no_seed_epoch_plots:
+            for seed in seed_ids:
+                plot_seed_binned_accuracy_by_epoch(
+                    checkpoint_labels,
+                    report_by_checkpoint,
+                    seed,
+                    "report",
+                    title_prefix,
+                    seed_epoch_dir / f"seed_{seed}_report_binned_accuracy_by_epoch.png",
+                    args.dpi,
+                )
         animate_binned_accuracy(
             checkpoint_labels,
             report_by_checkpoint,
@@ -547,6 +624,17 @@ def process_group(
         )
 
     if "hazard" in args.heads:
+        if not args.no_seed_epoch_plots:
+            for seed in seed_ids:
+                plot_seed_binned_accuracy_by_epoch(
+                    checkpoint_labels,
+                    hazard_by_checkpoint,
+                    seed,
+                    "hazard",
+                    title_prefix,
+                    seed_epoch_dir / f"seed_{seed}_hazard_binned_accuracy_by_epoch.png",
+                    args.dpi,
+                )
         if not args.no_skew_plot:
             plot_hazard_skew(
                 checkpoint_labels,

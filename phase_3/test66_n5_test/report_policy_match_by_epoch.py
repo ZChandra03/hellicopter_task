@@ -7,12 +7,14 @@ import importlib.util
 import json
 import re
 from pathlib import Path
+from textwrap import fill
 from typing import Any
 
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator, PercentFormatter
 import numpy as np
 import pandas as pd
 import torch
@@ -173,7 +175,7 @@ def import_model_class(model_root: Path, class_name: str):
 
 
 def list_seed_dirs(model_dir: Path) -> list[Path]:
-    seed_dirs = [p for p in model_dir.iterdir() if p.is_dir() and p.name == "seed_0"]
+    seed_dirs = [p for p in model_dir.iterdir() if p.is_dir() and SEED_RE.fullmatch(p.name)]
     seed_dirs.sort(key=lambda p: int(SEED_RE.fullmatch(p.name).group(1)))
     if not seed_dirs:
         raise FileNotFoundError(f"No seed_* directories found in {model_dir}")
@@ -615,25 +617,75 @@ def write_subset_trial_counts(cfg: dict[str, Any], trials: pd.DataFrame) -> pd.D
 
 
 METRIC_LABELS = {
-    "true_report": "true report",
-    "last_evidence_heuristic_report": "last evidence",
-    "normative_report": "normative",
+    "true_report": "True report",
+    "last_evidence_heuristic_report": "Last evidence",
+    "normative_report": "Normative",
 }
 SUBSET_LABELS = {
-    "all_test_trials": "All test trials",
-    "final_evidence_within_0.2_center": "Final evidence within 0.2 of center",
-    "final_evidence_wrong_side_vs_true_report": "Final evidence on wrong side",
+    "all_test_trials": "All trials",
+    "final_evidence_within_0.2_center": "|final evidence| <= 0.2",
+    "final_evidence_wrong_side_vs_true_report": "Final evidence opposes true report",
 }
 POLICY_LABELS = {
-    "last_evidence_heuristic_report": "last evidence",
-    "normative_report": "normative",
-    "heuristic_matches_normative": "heuristic vs normative",
+    "last_evidence_heuristic_report": "Last evidence",
+    "normative_report": "Normative",
+    "heuristic_matches_normative": "Heuristic vs normative",
 }
 METRIC_COLORS = {
-    "true_report": "#2f5d8c",
-    "last_evidence_heuristic_report": "#228b73",
-    "normative_report": "#b3475f",
+    "true_report": "#0072B2",
+    "last_evidence_heuristic_report": "#009E73",
+    "normative_report": "#D55E00",
 }
+POLICY_COLORS = {
+    "last_evidence_heuristic_report": "#009E73",
+    "normative_report": "#D55E00",
+    "heuristic_matches_normative": "#6B7280",
+}
+
+
+def apply_plot_style() -> None:
+    plt.rcParams.update(
+        {
+            "figure.facecolor": "white",
+            "axes.facecolor": "white",
+            "axes.edgecolor": "#D1D5DB",
+            "axes.labelcolor": "#111827",
+            "axes.titlecolor": "#111827",
+            "xtick.color": "#374151",
+            "ytick.color": "#374151",
+            "font.size": 10,
+            "axes.titlesize": 11,
+            "axes.titleweight": "semibold",
+            "axes.labelsize": 10,
+            "legend.fontsize": 9,
+        }
+    )
+
+
+def clean_axis(ax) -> None:
+    ax.set_axisbelow(True)
+    ax.grid(axis="y", color="#E5E7EB", linewidth=0.8)
+    ax.tick_params(axis="both", length=0)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#D1D5DB")
+    ax.spines["bottom"].set_color("#D1D5DB")
+
+
+def wrapped_labels(labels: list[str], width: int = 20) -> list[str]:
+    return [fill(label, width=width, break_long_words=False) for label in labels]
+
+
+def epoch_ticks(epochs: pd.Series, max_ticks: int = 8) -> list[int]:
+    unique_epochs = sorted({int(epoch) for epoch in epochs.dropna()})
+    if len(unique_epochs) <= max_ticks:
+        return unique_epochs
+
+    stride = int(np.ceil(len(unique_epochs) / max_ticks))
+    ticks = unique_epochs[::stride]
+    if ticks[-1] != unique_epochs[-1]:
+        ticks.append(unique_epochs[-1])
+    return ticks
 
 
 def plot_metric_by_epoch(
@@ -644,12 +696,13 @@ def plot_metric_by_epoch(
     title: str,
     out_path: Path,
     y_limits: tuple[float, float] | None = None,
+    y_as_percent: bool = False,
 ) -> None:
     subsets = list(model_summary["subset"].drop_duplicates())
     fig, axes = plt.subplots(
         1,
         len(subsets),
-        figsize=(5.1 * len(subsets), 4.8),
+        figsize=(4.8 * len(subsets), 4.4),
         sharey=True,
         constrained_layout=False,
     )
@@ -664,111 +717,139 @@ def plot_metric_by_epoch(
             y = metric_df[metric_column].to_numpy(dtype=float)
             yerr = metric_df[std_column].to_numpy(dtype=float)
             yerr = np.where(np.isfinite(yerr), yerr, 0.0)
-            ax.errorbar(
+            color = METRIC_COLORS.get(metric_name, "#555555")
+            if np.any(yerr > 0):
+                lower = y - yerr
+                upper = y + yerr
+                if y_limits is not None:
+                    lower = np.clip(lower, *y_limits)
+                    upper = np.clip(upper, *y_limits)
+                ax.fill_between(
+                    x,
+                    lower,
+                    upper,
+                    color=color,
+                    alpha=0.13,
+                    linewidth=0,
+                )
+            ax.plot(
                 x,
                 y,
-                yerr=yerr,
-                color=METRIC_COLORS.get(metric_name, "#555555"),
+                color=color,
                 marker="o",
-                linewidth=2.0,
-                capsize=3,
+                linewidth=2.2,
+                markersize=4.8,
                 label=METRIC_LABELS.get(metric_name, metric_name),
             )
 
-        ax.set_title(SUBSET_LABELS.get(subset, subset), fontsize=10)
+        ax.set_title(SUBSET_LABELS.get(subset, subset), pad=10)
         ax.set_xlabel("Epoch")
-        ax.set_xticks(sorted(subset_df["epoch"].drop_duplicates()))
-        ax.grid(axis="y", alpha=0.3)
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
+        ax.set_xticks(epoch_ticks(subset_df["epoch"]))
+        ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
+        if y_as_percent:
+            ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
         if y_limits is not None:
             ax.set_ylim(*y_limits)
+        ax.margins(x=0.04)
+        clean_axis(ax)
 
     axes[0].set_ylabel(ylabel)
     handles, labels = axes[-1].get_legend_handles_labels()
+    fig.suptitle(title, y=0.98, fontsize=14, fontweight="semibold")
     fig.legend(
         handles,
         labels,
         loc="upper center",
-        bbox_to_anchor=(0.5, 1.03),
+        bbox_to_anchor=(0.5, 0.91),
         ncol=3,
         frameon=False,
     )
-    fig.suptitle(title, y=0.98)
-    fig.subplots_adjust(top=0.74, bottom=0.16, wspace=0.08)
-    fig.savefig(out_path, dpi=220, bbox_inches="tight")
+    fig.subplots_adjust(top=0.78, bottom=0.16, wspace=0.12)
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
 def plot_reference_policies(reference_summary: pd.DataFrame, out_path: Path) -> None:
     subsets = list(reference_summary["subset"].drop_duplicates())
     policies = list(reference_summary["policy"].drop_duplicates())
-    colors = ["#228b73", "#b3475f", "#6b7280"]
-    fig, ax = plt.subplots(figsize=(max(7.0, 2.8 * len(subsets)), 4.6))
+    fig, ax = plt.subplots(figsize=(max(7.4, 2.4 * len(subsets)), 4.5))
 
     x = np.arange(len(subsets))
-    width = 0.22
-    offsets = np.linspace(-width, width, len(policies))
-    for offset, policy, color in zip(offsets, policies, colors):
+    width = min(0.22, 0.72 / max(1, len(policies)))
+    offsets = (np.arange(len(policies)) - (len(policies) - 1) / 2) * width
+    for offset, policy in zip(offsets, policies):
         policy_df = (
             reference_summary[reference_summary["policy"] == policy]
             .set_index("subset")
             .reindex(subsets)
         )
-        ax.bar(
+        color = POLICY_COLORS.get(policy, "#6B7280")
+        bars = ax.bar(
             x + offset,
             policy_df["report_accuracy_vs_true"],
             width,
             label=POLICY_LABELS.get(policy, policy),
             color=color,
-            alpha=0.9,
+            alpha=0.94,
         )
+        for bar, value in zip(bars, policy_df["report_accuracy_vs_true"]):
+            if np.isfinite(value):
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2,
+                    bar.get_height() + 0.012,
+                    f"{float(value):.0%}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=8,
+                    color="#374151",
+                )
 
     ax.set_xticks(x)
-    ax.set_xticklabels([SUBSET_LABELS.get(subset, subset) for subset in subsets], rotation=18, ha="right")
-    ax.set_ylim(0, 1.04)
+    ax.set_xticklabels(wrapped_labels([SUBSET_LABELS.get(subset, subset) for subset in subsets], 18))
+    ax.set_ylim(0, 1.08)
+    ax.yaxis.set_major_formatter(PercentFormatter(xmax=1.0, decimals=0))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=5))
     ax.set_ylabel("Accuracy / agreement")
-    ax.set_title("Reference report policies by trial subset")
-    ax.grid(axis="y", alpha=0.3)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.legend(frameon=False, ncol=min(3, len(policies)))
+    ax.set_title("Reference report policies by subset", pad=12)
+    clean_axis(ax)
+    ax.legend(frameon=False, ncol=min(3, len(policies)), loc="upper center", bbox_to_anchor=(0.5, 1.08))
     fig.tight_layout()
-    fig.savefig(out_path, dpi=220, bbox_inches="tight")
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
 def plot_subset_counts(subset_counts: pd.DataFrame, out_path: Path) -> None:
-    fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    fig, ax = plt.subplots(figsize=(7.2, 4.3))
     x = np.arange(len(subset_counts))
     bars = ax.bar(
         x,
         subset_counts["n_trials"],
-        color=["#2f5d8c", "#228b73", "#b3475f"][: len(subset_counts)],
-        alpha=0.9,
+        color=["#0072B2", "#009E73", "#D55E00"][: len(subset_counts)],
+        alpha=0.94,
     )
     ax.set_xticks(x)
     ax.set_xticklabels(
-        [SUBSET_LABELS.get(subset, subset) for subset in subset_counts["subset"]],
-        rotation=18,
-        ha="right",
+        wrapped_labels([SUBSET_LABELS.get(subset, subset) for subset in subset_counts["subset"]], 18),
     )
     ax.set_ylabel("Trials")
-    ax.set_title("Trial counts by subset")
-    ax.grid(axis="y", alpha=0.3)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
+    ax.set_title("Trial counts by subset", pad=12)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True, nbins=5))
+    clean_axis(ax)
+    max_count = float(subset_counts["n_trials"].max()) if len(subset_counts) else 0.0
+    if max_count > 0:
+        ax.set_ylim(0, max_count * 1.16)
     for bar, frac in zip(bars, subset_counts["fraction_of_trials"]):
         ax.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height(),
-            f"{frac:.1%}",
+            bar.get_height() + max_count * 0.025,
+            f"{int(bar.get_height()):,}\n{frac:.1%}",
             ha="center",
             va="bottom",
-            fontsize=9,
+            fontsize=8.5,
+            color="#374151",
         )
     fig.tight_layout()
-    fig.savefig(out_path, dpi=220, bbox_inches="tight")
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
@@ -778,6 +859,7 @@ def make_plots(
     reference_summary_df: pd.DataFrame,
     subset_counts: pd.DataFrame,
 ) -> list[Path]:
+    apply_plot_style()
     plot_paths = [
         cfg["output_dir"] / "report_policy_match_accuracy_by_epoch.png",
         cfg["output_dir"] / "report_policy_match_bce_by_epoch.png",
@@ -793,6 +875,7 @@ def make_plots(
         title=f"{cfg['model_subdir']} report policy match",
         out_path=plot_paths[0],
         y_limits=(0, 1.04),
+        y_as_percent=True,
     )
     plot_metric_by_epoch(
         model_summary,
@@ -810,6 +893,7 @@ def make_plots(
         title=f"{cfg['model_subdir']} report sign bias",
         out_path=plot_paths[2],
         y_limits=(0, 1.04),
+        y_as_percent=True,
     )
     plot_reference_policies(reference_summary_df, plot_paths[3])
     plot_subset_counts(subset_counts, plot_paths[4])

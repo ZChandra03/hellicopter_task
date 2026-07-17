@@ -1,0 +1,18 @@
+{
+  "linear": [
+    "pc1",
+    "pc2",
+    "pc3"
+  ],
+  "quadratic": [
+    "pc1",
+    "pc2",
+    "pc3",
+    "pc1^2",
+    "pc1 pc2",
+    "pc1 pc3",
+    "pc2^2",
+    "pc2 pc3",
+    "pc3^2"
+  ]
+}

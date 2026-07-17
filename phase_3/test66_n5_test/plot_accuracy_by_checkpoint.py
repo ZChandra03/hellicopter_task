@@ -363,22 +363,7 @@ def collect_results(cfg: dict[str, Any]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def plot_results(
-    df: pd.DataFrame,
-    cfg: dict[str, Any],
-    metric_column: str,
-    ylabel: str,
-    title: str,
-    out_path: Path,
-    y_limits: tuple[float, float] = (0.0, 1.0),
-    normative_accuracy: float | None = None,
-    normative_label: str = "normative",
-    heuristic_accuracy: float | None = None,
-    heuristic_label: str = "last evidence",
-) -> None:
-    if metric_column not in df.columns:
-        raise ValueError(f"Dataframe does not contain {metric_column!r}")
-
+def checkpoint_layout(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, int]]:
     checkpoint_table = (
         df[["checkpoint", "checkpoint_order"]]
         .drop_duplicates()
@@ -388,8 +373,32 @@ def plot_results(
     x_by_checkpoint = {
         row.checkpoint: i for i, row in enumerate(checkpoint_table.itertuples(index=False))
     }
+    return checkpoint_table, x_by_checkpoint
 
-    fig, ax = plt.subplots(figsize=(10, 5.5))
+
+def draw_accuracy_panel(
+    ax,
+    df: pd.DataFrame,
+    metric_column: str,
+    ylabel: str,
+    title: str,
+    y_limits: tuple[float, float],
+    normative_accuracy: float | None = None,
+    normative_label: str = "normative",
+    heuristic_accuracy: float | None = None,
+    heuristic_label: str = "last evidence",
+    show_xlabel: bool = True,
+    title_size: int = 13,
+    label_size: int = 12,
+    tick_label_size: int = 10,
+    legend_font_size: int = 8,
+    seed_color: str | None = None,
+    show_seed_labels: bool = True,
+) -> None:
+    if metric_column not in df.columns:
+        raise ValueError(f"Dataframe does not contain {metric_column!r}")
+
+    checkpoint_table, x_by_checkpoint = checkpoint_layout(df)
     cmap = plt.get_cmap("tab10")
 
     for i, (model_name, model_df) in enumerate(df.groupby("model", sort=True)):
@@ -398,12 +407,12 @@ def plot_results(
         ax.plot(
             x,
             model_df[metric_column],
-            color=cmap(i % 10),
+            color=seed_color if seed_color is not None else cmap(i % 10),
             alpha=0.42,
             linewidth=1.2,
             marker="o",
             markersize=3.2,
-            label=model_name,
+            label=model_name if show_seed_labels else "_nolegend_",
         )
 
     avg = (
@@ -442,14 +451,98 @@ def plot_results(
         )
 
     ax.set_xticks(range(len(checkpoint_table)))
-    ax.set_xticklabels(checkpoint_table["checkpoint"], rotation=35, ha="right")
+    ax.set_xticklabels(
+        checkpoint_table["checkpoint"],
+        rotation=35,
+        ha="right",
+        fontsize=tick_label_size,
+    )
     ax.set_ylim(*y_limits)
-    ax.set_xlabel("Checkpoint")
-    ax.set_ylabel(ylabel)
-    ax.set_title(title)
+    ax.set_xlabel("Checkpoint" if show_xlabel else "", fontsize=label_size)
+    ax.set_ylabel(ylabel, fontsize=label_size)
+    ax.set_title(title, fontsize=title_size, pad=12)
+    ax.tick_params(axis="y", labelsize=tick_label_size)
     ax.grid(True, axis="y", alpha=0.3)
-    ax.legend(frameon=False, ncol=2, fontsize=8)
+    ax.legend(frameon=False, ncol=2, fontsize=legend_font_size)
+
+
+def plot_results(
+    df: pd.DataFrame,
+    cfg: dict[str, Any],
+    metric_column: str,
+    ylabel: str,
+    title: str,
+    out_path: Path,
+    y_limits: tuple[float, float] = (0.0, 1.0),
+    normative_accuracy: float | None = None,
+    normative_label: str = "normative",
+    heuristic_accuracy: float | None = None,
+    heuristic_label: str = "last evidence",
+) -> None:
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    draw_accuracy_panel(
+        ax,
+        df,
+        metric_column=metric_column,
+        ylabel=ylabel,
+        title=title,
+        y_limits=y_limits,
+        normative_accuracy=normative_accuracy,
+        normative_label=normative_label,
+        heuristic_accuracy=heuristic_accuracy,
+        heuristic_label=heuristic_label,
+    )
     fig.tight_layout()
+    fig.savefig(out_path, dpi=250, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_stacked_report_predict_results(
+    df: pd.DataFrame,
+    cfg: dict[str, Any],
+    out_path: Path,
+    normative_report_accuracy: float,
+    heuristic_report_accuracy: float,
+) -> None:
+    fig, axes = plt.subplots(2, 1, figsize=(15, 12), sharex=False)
+    fig.suptitle(
+        f"{cfg['model_subdir']} accuracy by checkpoint",
+        fontsize=24,
+        fontweight="bold",
+    )
+
+    draw_accuracy_panel(
+        axes[0],
+        df,
+        metric_column="report_accuracy",
+        ylabel="Report accuracy",
+        title="Report accuracy by checkpoint (zoomed to 0.80-0.90)",
+        y_limits=(0.8, 0.9),
+        normative_accuracy=normative_report_accuracy,
+        heuristic_accuracy=heuristic_report_accuracy,
+        title_size=20,
+        label_size=18,
+        tick_label_size=16,
+        legend_font_size=18,
+        seed_color="0.55",
+        show_seed_labels=False,
+    )
+    draw_accuracy_panel(
+        axes[1],
+        df,
+        metric_column="predict_accuracy",
+        ylabel="Predict accuracy",
+        title="Predict accuracy by checkpoint",
+        y_limits=(0.0, 1.0),
+        title_size=20,
+        label_size=18,
+        tick_label_size=16,
+        legend_font_size=18,
+        seed_color="0.55",
+        show_seed_labels=False,
+    )
+
+    fig.tight_layout(rect=(0, 0, 1, 0.96), h_pad=3.0)
     fig.savefig(out_path, dpi=250, bbox_inches="tight")
     plt.close(fig)
 
@@ -496,6 +589,10 @@ def main() -> None:
     report_plot_path = cfg["output_dir"] / "report_accuracy_by_checkpoint.png"
     predict_plot_path = cfg["output_dir"] / "predict_accuracy_by_checkpoint.png"
     report_zoom_plot_path = cfg["output_dir"] / "report_accuracy_by_checkpoint_80_90.png"
+    stacked_plot_path = (
+        cfg["output_dir"]
+        / "report_accuracy_by_checkpoint_80_90_and_predict_accuracy_by_checkpoint.png"
+    )
     normative_report_accuracy = load_normative_accuracy(cfg, "report_accuracy")
     heuristic_report_accuracy = load_last_evidence_heuristic_accuracy(cfg)
 
@@ -527,10 +624,18 @@ def main() -> None:
         normative_accuracy=normative_report_accuracy,
         heuristic_accuracy=heuristic_report_accuracy,
     )
+    plot_stacked_report_predict_results(
+        df,
+        cfg,
+        out_path=stacked_plot_path,
+        normative_report_accuracy=normative_report_accuracy,
+        heuristic_report_accuracy=heuristic_report_accuracy,
+    )
     print(f"Saved metrics to {csv_path}")
     print(f"Saved report plot to {report_plot_path}")
     print(f"Saved predict plot to {predict_plot_path}")
     print(f"Saved report zoom plot to {report_zoom_plot_path}")
+    print(f"Saved stacked report/predict plot to {stacked_plot_path}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,39 @@
+{
+  "input": "D:\\github\\hellicopter_task\\phase_3\\test76_PC3_test\\pca_outputs\\pca_ep010_hidden_states.csv",
+  "variant_dir": "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1",
+  "normative_model": "D:\\github\\hellicopter_task\\utils\\NormativeModel.py",
+  "pc_columns": [
+    "pc1",
+    "pc2",
+    "pc3"
+  ],
+  "n_null_timesteps": 4,
+  "mu": 1.0,
+  "hazard_grid": [
+    0.0,
+    0.05,
+    0.1,
+    0.15000000000000002,
+    0.2,
+    0.25,
+    0.30000000000000004,
+    0.35000000000000003,
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6000000000000001,
+    0.65,
+    0.7000000000000001,
+    0.75,
+    0.8,
+    0.8500000000000001,
+    0.9,
+    0.9500000000000001
+  ],
+  "bias": 0.0,
+  "min_pairs": 3,
+  "posterior_bins_included": true,
+  "n_rows": 576000,
+  "n_trials": 6000
+}

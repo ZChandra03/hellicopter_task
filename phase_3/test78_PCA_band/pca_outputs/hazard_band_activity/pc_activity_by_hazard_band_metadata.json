@@ -1,0 +1,22 @@
+{
+  "input_csv": "D:\\github\\hellicopter_task\\phase_3\\test78_PCA_band\\pca_outputs\\pca_ep010_final_timestep_hidden_states.csv",
+  "rows_analyzed": 6000,
+  "pc_columns": [
+    "pc1",
+    "pc2",
+    "pc3"
+  ],
+  "hazard_column": "true_hazard",
+  "hazard_band_edges": [
+    0.0,
+    0.2,
+    0.4,
+    0.6,
+    0.8,
+    1.0
+  ],
+  "correct_only": false,
+  "timestep_selection": "all",
+  "primary_activity_measure": "mean absolute PC score",
+  "confidence_intervals": "normal-approximation 95% CI across PCA rows"
+}
