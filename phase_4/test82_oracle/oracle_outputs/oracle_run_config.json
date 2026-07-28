@@ -1,0 +1,37 @@
+{
+  "config": "D:\\github\\hellicopter_task\\phase_4\\test82_oracle\\config.json",
+  "predictions": "D:\\github\\hellicopter_task\\phase_4\\test82_input_length\\prefix_length_outputs\\prefix_trial_predictions.csv.gz",
+  "model_root": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
+  "variant_dir": "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1",
+  "output_dir": "D:\\github\\hellicopter_task\\phase_4\\test82_oracle\\oracle_outputs",
+  "prefix_lengths": [
+    1,
+    2,
+    3,
+    5,
+    10,
+    15,
+    20
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "n_trials": 6000,
+  "quadrature_points_per_hazard_half": 64,
+  "mu": 1.0,
+  "x_limit": 5.0,
+  "calibration_bins": 10,
+  "max_trials": null,
+  "accuracy_tie_rule": "Predictions exactly equal to 0.5 receive 0.5 accuracy credit; NLL, Brier score, and p(correct) use the unmodified probability.",
+  "state_oracle": "Closed-form posterior from latent switch count; privileged-information ceiling.",
+  "evidence_oracle": "HMM likelihood integrated over a uniform hazard prior using Gauss-Legendre quadrature; receives the same noisy evidence prefixes as the model."
+}

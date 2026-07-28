@@ -1,0 +1,36 @@
+{
+  "model_root": "D:\\github\\hellicopter_task\\models\\models_n5\\bce_both\\sigma_1",
+  "model_subdir": "bce_both/sigma_1",
+  "variant_root": "D:\\github\\hellicopter_task\\variants\\variants_current",
+  "variant_subdir": "sigma_1",
+  "variant_split": "test",
+  "n_variant_csvs": 20,
+  "checkpoint_name": "checkpoint_ep010.pt",
+  "model_class": "GRUModel",
+  "prefix_lengths": [
+    1,
+    2,
+    3,
+    5,
+    10,
+    15,
+    20
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "pca_seed": 1,
+  "batch_size": 256,
+  "n_components": 3,
+  "max_plot_points": 60000,
+  "skip_pca": false
+}
