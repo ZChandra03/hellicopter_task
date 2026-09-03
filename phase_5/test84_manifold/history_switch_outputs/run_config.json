@@ -1,0 +1,23 @@
+{
+  "config": "D:\\github\\hellicopter_task\\phase_5\\test84_manifold\\config.json",
+  "models": "all",
+  "checkpoints": "1,5,7,10,final",
+  "n_sequences": 512,
+  "block_length": 20,
+  "low_hazard": 0.1,
+  "high_hazard": 0.9,
+  "sigma": 1.0,
+  "batch_size": 256,
+  "max_trajectory_replicates": 64,
+  "max_pca_points": 20000,
+  "device": "auto",
+  "output_dir": "phase_5\\test84_manifold\\history_switch_outputs",
+  "random_seed": 8401,
+  "device_resolved": "cuda",
+  "seed": 0,
+  "models_resolved": [
+    "bayesian",
+    "heuristic"
+  ],
+  "pairing": "Within each suffix type, high- and low-history conditions receive identical suffix latent states, evidence, and observation noise."
+}

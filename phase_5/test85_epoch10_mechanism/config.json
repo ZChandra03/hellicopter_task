@@ -1,0 +1,22 @@
+{
+  "seed": 0,
+  "variant_root": "D:/github/hellicopter_task/variants/variants_current",
+  "variant_subdir": "sigma_1",
+  "normative_model": "D:/github/hellicopter_task/utils/NormativeModel.py",
+  "models": [
+    {
+      "key": "bayesian",
+      "label": "true-report trained",
+      "model_root": "D:/github/hellicopter_task/models/models_n5/bce_both/sigma_1"
+    },
+    {
+      "key": "heuristic",
+      "label": "last-evidence trained",
+      "model_root": "D:/github/hellicopter_task/models/models_n5_hueristic/bce_both/sigma_1"
+    }
+  ],
+  "_meta": {
+    "test_folder": "phase_5/test85_epoch10_mechanism",
+    "scope": "epoch 10, seed 0, sigma 1; the heuristic remains an optional control"
+  }
+}

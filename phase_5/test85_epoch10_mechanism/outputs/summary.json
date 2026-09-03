@@ -1,0 +1,55 @@
+{
+  "task_aligned_variance_fraction": 0.831983814942023,
+  "report_hazard_weight_cosine": -0.07157627417340197,
+  "fraction_probe_trials_with_report_crossing": 1.0,
+  "median_report_transition_evidence_by_prefix_hazard_quartile": {
+    "0": -0.3130125994995945,
+    "1": 0.024603175869904875,
+    "2": 0.07835871057104765,
+    "3": -0.1374886412948948
+  },
+  "median_signed_transition_evidence_by_prefix_hazard_quartile": {
+    "0": -0.6104876273995539,
+    "1": -0.23593633854803805,
+    "2": 0.11759991926554675,
+    "3": 0.4901151632245915
+  },
+  "signed_transition_spearman_with_prefix_hazard": 0.8017626985168658,
+  "signed_transition_regression": {
+    "standardized_hazard_coefficient": 0.3459796731709095,
+    "standardized_abs_prior_coefficient": -0.014142258615147714,
+    "hazard_x_abs_prior_coefficient": 0.15744937368105352
+  },
+  "strongest_mean_hazard_to_report_probability_gain": {
+    "gain": -0.05941535532474518,
+    "controlled_final_evidence": -0.33333333333333326,
+    "prefix_report_logit": 4.470594882965088,
+    "prefix_report_bin": 7
+  },
+  "median_abs_transition_hazard_to_report_probability_gain": 0.02953556552529335,
+  "fraction_transition_hazard_gain_weakens_prior": 0.8325,
+  "fraction_zero_evidence_hazard_gain_weakens_prior": 0.7975,
+  "median_zero_evidence_prior_weakening_gain": 0.022677794098854065,
+  "median_transition_input_evidence_gain": 1.9301445968449102,
+  "local_participation_ratio_median": 3.901926279067993,
+  "local_participation_ratio_95th_percentile": 4.5662517786026,
+  "conditioned_points": 90,
+  "fixed_points": 5,
+  "slow_points": 18,
+  "tested_stable_points": 26,
+  "tested_saddle_or_unstable_points": 1,
+  "median_conditioned_point_distance_over_neighbor": 3.13698443923018,
+  "median_slow_point_distance_over_neighbor": 1.8207530897508577,
+  "zero_cycle_basin_fraction": {
+    "high_hazard": 0.7946666666666666,
+    "low_hazard": 0.20533333333333334
+  },
+  "zero_cycle_basin_assignment_spearman_with_initial_hazard": 0.8464285930127081,
+  "zero_cycle_separatrix": {
+    "coef_report": -7.359102536307028,
+    "coef_hazard": 8.615983071066259,
+    "coef_residual": -3.4390210613160446,
+    "intercept": 9.980420816993181,
+    "training_accuracy": 0.9806666666666667
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "config": "D:\\github\\hellicopter_task\\phase_5\\test84_manifold\\config.json",
+  "models": "all",
+  "checkpoints": "all",
+  "split": "val",
+  "max_csvs": 5,
+  "max_trials": null,
+  "batch_size": 256,
+  "device": "auto",
+  "max_id_points": 5000,
+  "max_cv_trials": 500,
+  "cv_folds": 3,
+  "max_comparison_points": 5000,
+  "max_atlas_points": 2500,
+  "atlas_checkpoints": "1,5,7,10,final",
+  "hazard_step": 0.05,
+  "output_dir": "phase_5\\test84_manifold\\geometry_outputs",
+  "device_resolved": "cuda",
+  "seed": 0,
+  "n_trials": 1500,
+  "source_csvs": [
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_0.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_1.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_2.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_3.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_4.csv"
+  ],
+  "models_resolved": [
+    "bayesian",
+    "heuristic"
+  ],
+  "normative_model": "D:\\github\\hellicopter_task\\utils\\NormativeModel.py",
+  "state_scopes": [
+    "all hidden states immediately after evidence items",
+    "final post-evidence hidden state per trial"
+  ]
+}

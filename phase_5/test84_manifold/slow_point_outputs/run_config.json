@@ -1,0 +1,40 @@
+{
+  "config": "D:\\github\\hellicopter_task\\phase_5\\test84_manifold\\config.json",
+  "models": "all",
+  "checkpoints": "1,5,6,7,10",
+  "maps": "null,zero_cycle",
+  "split": "val",
+  "max_csvs": 5,
+  "max_trials": 500,
+  "batch_size": 256,
+  "device": "auto",
+  "n_inits": 128,
+  "opt_steps": 1500,
+  "learning_rate": 0.01,
+  "patience": 300,
+  "cluster_eps": 0.001,
+  "fixed_tol": 1e-06,
+  "slow_tol": 0.001,
+  "eig_tol": 0.01,
+  "max_points_per_map": 8,
+  "basin_inits": 256,
+  "basin_steps": 200,
+  "basin_tol": 0.0001,
+  "basin_cluster_eps": 0.001,
+  "output_dir": "phase_5\\test84_manifold\\slow_point_outputs",
+  "random_seed": 8421,
+  "device_resolved": "cuda",
+  "seed": 0,
+  "models_resolved": [
+    "bayesian",
+    "heuristic"
+  ],
+  "source_csvs": [
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_0.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_1.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_2.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_3.csv",
+    "D:\\github\\hellicopter_task\\variants\\variants_current\\sigma_1\\valConfig_4.csv"
+  ],
+  "map_phase": "cycle maps start at a post-evidence hidden state, apply n_null null updates, then apply the next canonical evidence update"
+}

@@ -1,0 +1,24 @@
+{
+  "coordinate_names": [
+    "report_readout",
+    "hazard_exclusive",
+    "residual_variance"
+  ],
+  "coordinate_means": [
+    -0.014198501313787583,
+    -0.4537077392904998,
+    0.8052585805514061
+  ],
+  "coordinate_scales": [
+    1.8977612036983182,
+    1.5728303601791025,
+    1.4585473064195558
+  ],
+  "report_weight_norm": 1.4576582125180162,
+  "hazard_weight_norm": 1.0146462734509782,
+  "report_hazard_weight_cosine": -0.07157627417340197,
+  "hazard_head_gain_along_exclusive_axis": 1.012043836858606,
+  "report_decision_boundary_z": 0.00748171123222344,
+  "task_aligned_variance_fraction": 0.831983814942023,
+  "residual_axis_last_evidence_correlation": 0.06625824621746143
+}
